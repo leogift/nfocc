@@ -1,0 +1,108 @@
+/**
+ * @file nfocc_geometry.h
+ * @brief 三角化、基线方向判定、σ 传播。
+ *
+ * 规范: docs/SPEC-FORWARD.md §2/§4, docs/SPEC-EPIPOLAR.md §4
+ *
+ * ## 为什么不是 Z = f·b/d (ADR-002)
+ * 该式只在**平移垂直于视线**时成立。本项目相机俯角 0°、车辆直行,
+ * 视线与平移夹角从 0° 到近 90°。Python 原型实测: 光轴附近相对误差 **10.3 倍**。
+ * 生产路径用射线最小二乘:
+ *     P = C0 + s0·r0 = C1 + s1·r1  =>  [r0, −r1]·[s0,s1]ᵀ = t
+ */
+#ifndef NFOCC_GEOMETRY_H
+#define NFOCC_GEOMETRY_H
+
+#include "nfocc_types.h"
+#include "nfocc_camera.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/** 运行模式 (SPEC-FORWARD §4) */
+typedef enum {
+    NF_MODE_STEREO       = 0,   /**< 侧向, 走 SGBM */
+    NF_MODE_FORWARD      = 1,   /**< 前向, 走解析测距 */
+    NF_MODE_HYBRID       = 2,   /**< 中间带, 两条都跑 */
+    NF_MODE_FROZEN_NEAR  = 3,   /**< B < B_MIN */
+    NF_MODE_FROZEN_FAR   = 4,   /**< B > B_MAX */
+    NF_MODE_FROZEN_GAP   = 5    /**< 丢帧 */
+} NFMode;
+
+/** 模式是否产出深度 */
+nf_u8 nf_mode_produces_depth(NFMode m);
+const char *nf_mode_str(NFMode m);
+
+/** 门控决策 */
+typedef struct {
+    NFMode  mode;
+    nf_f32  baseline_mm;   /**< |t| */
+    nf_f32  sigma;          /**< |t_xy| / |t|, 侧向程度 */
+    nf_f32  epi_angle_deg;  /**< 极线与图像横轴夹角 */
+} NFGateDecision;
+
+/**
+ * 由相机系平移给出模式 (SPEC-FORWARD §4)。
+ * @param t_cam 相机系平移 [3], mm
+ * @param frame_gap 距参考帧的帧间隔
+ */
+NFStatus nf_gate_decide(const nf_f32 *t_cam, nf_u32 frame_gap,
+                        nf_f32 b_min_mm, nf_f32 b_max_mm,
+                        nf_f32 sigma_stereo_min, nf_f32 sigma_forward_max,
+                        nf_u32 gap_max_frames,
+                        NFGateDecision *out);
+
+/**
+ * 射线最小二乘三角化(批量)。
+ * @param c0  参考帧光心 [3] (相机系, 通常为原点)
+ * @param r0  参考帧单位射线 [n*3] (相机系)
+ * @param c1  当前帧光心 [3] (同一坐标系)
+ * @param r1  当前帧单位射线 [n*3]
+ * @param s0  输出: 参考帧距离 [n], 无效为 NaN
+ * @param ok  输出: 有效性 [n]
+ */
+NFStatus nf_triangulate_rays(const nf_f32 *c0, const nf_f32 *r0,
+                             const nf_f32 *c1, const nf_f32 *r1,
+                             nf_u32 n, nf_f32 *s0, nf_u8 *ok);
+
+/**
+ * 有效基线: t 在**垂直于视线**方向的分量大小。
+ * 前向平移时 b_perp << |t|, 直接拿 |t| 会把 σ_Z 高估数倍。
+ */
+NFStatus nf_effective_baseline(const nf_f32 *r, nf_u32 n,
+                               const nf_f32 *t,
+                               nf_f32 *b_perp);
+
+/**
+ * σ 传播。σ_Z = sqrt( (Z²/(f·b_perp))²·σ_d² + (Z·σ_b_ratio)² )
+ * 第一项是视差误差传播, 第二项是基线尺度误差(相对)。
+ */
+NFStatus nf_sigma_depth(const nf_f32 *z_mm, const nf_f32 *b_perp_mm,
+                        nf_u32 n, nf_f32 f_px, nf_f32 sigma_d_px,
+                        nf_f32 sigma_b_ratio, nf_f32 *sigma_out_mm);
+
+/**
+ * 前向运动的径向膨胀解析测距 (SPEC-FORWARD §2)。
+ *
+ *   Z = Σ[(û×v̂)·(t×v̂)] / Σ|û×v̂|²
+ *
+ * **对任意平移方向成立**, 不要求极线平行。
+ * @param u_hat 参考帧单位方向 [n*3]
+ * @param v_hat 当前帧对应点单位方向 [n*3]
+ * @param t     平移(同一坐标系) [3]
+ * @param z_out 输出距离 |q0| [n]
+ * **注意 Z 是距离 |q0|, 不是光轴深度 q0.z** —— 混用会让结果差数倍。
+ */
+NFStatus nf_forward_range(const nf_f32 *u_hat, const nf_f32 *v_hat,
+                          nf_u32 n, const nf_f32 *t,
+                          nf_f32 *z_out, nf_u8 *ok);
+
+/** 极线与图像横轴夹角(度)。判据见 SPEC-EPIPOLAR §1 */
+nf_f32 nf_epi_angle_deg(const nf_f32 *t_cam);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
+
+#endif /* NFOCC_GEOMETRY_H */

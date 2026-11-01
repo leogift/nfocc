@@ -1,0 +1,7 @@
+# 由 tools/sync_third_party.py 生成
+eigen
+openblas
+libomp
+zeromq
+onnxruntime
+opencv

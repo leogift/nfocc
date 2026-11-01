@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "nfocc",
+  "version": "0.3.0",
+  "description": "4-way fisheye surround + motion stereo near-field occupancy dense depth",
+  "dependencies": [
+    { "name": "opencv4", "default-features": false,
+      "features": [ "core", "imgproc", "calib3d" ] },
+    "zeromq",
+    "eigen3",
+    "openblas",
+    { "name": "onnxruntime-gpu", "platform": "!osx & !windows" }
+  ],
+  "builtin-baseline": "tokens-copied-from-vcpkg-registry",
+  "overrides": [
+    { "name": "opencv4", "version": "4.10.0" }
+  ]
+}

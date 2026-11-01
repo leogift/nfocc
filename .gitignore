@@ -1,0 +1,45 @@
+# ---- 构建产物（不入库）----
+build/
+cmake-build-*/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+nfocc_run
+nfocc_gen
+nfocc_sink
+nfocc_viz
+compile_commands.json
+CMakeCache.txt
+CMakeFiles/
+CPackConfig.cmake
+CPackSourceConfig.cmake
+Makefile
+cmake_install.cmake
+
+# ---- 调试输出 ----
+viz/
+out/
+
+# ---- 数据集（体积大，含第三方授权内容）----
+datasets/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ---- 编辑器 / 系统 ----
+.DS_Store
+._*
+.idea/
+.vscode/
+*.swp
+*~
+
+# ---- 本地日志 ----
+*.log
