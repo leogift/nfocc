@@ -232,6 +232,11 @@ int main(int argc, char **argv) {
     std::printf("ego: speed=%.2f m/s dist=%.4f m -> 位移 %.1f mm\n",
                 (double)ego.speed_mps, (double)ego.distance_m, (double)move_mm);
 
+    /* 每格记录**来源视口位掩码**（哪个视口的点落进来的）。
+     * 用于 BEV 上按视口着色，看清各视口的覆盖贡献。 */
+    const nf_u32 viz_n_cells = gp.nx * gp.ny;
+    std::vector<nf_u8> cell_view(viz_n_cells, 0);
+
     nf_u32 n_raw = 0, n_ins = 0, n_full = 0, n_out = 0;
     float pmin[3] = { 1e9f, 1e9f, 1e9f }, pmax[3] = { -1e9f, -1e9f, -1e9f };
     nf_u32 bins[4] = { 0, 0, 0, 0 };
@@ -454,6 +459,17 @@ int main(int argc, char **argv) {
                 const float Pv[3] = { r0[0]*s0 + pose->t[0],
                                       r0[1]*s0 + pose->t[1],
                                       r0[2]*s0 + pose->t[2] };
+                /* 记录该格被哪个视口覆盖（在插入前算格索引） */
+                {
+                    const nf_i32 cx = (nf_i32)std::floor((Pv[0] - gp.x_min) / gp.vox_mm);
+                    const nf_i32 cy = (nf_i32)std::floor((Pv[1] - gp.y_min) / gp.vox_mm);
+                    const nf_i32 cz = (nf_i32)std::floor((Pv[2] - gp.z_min) / gp.vox_mm);
+                    if (cx >= 0 && cx < (nf_i32)gp.nx && cy >= 0 && cy < (nf_i32)gp.ny
+                        && cz >= 0 && cz < (nf_i32)gp.nz) {
+                        const nf_u32 cell = (nf_u32)cy * gp.nx + (nf_u32)cx;
+                        cell_view[cell] |= (nf_u8)(1u << vi);
+                    }
+                }
                 const NFStatus ins = nf_voxel_insert(vox, Pv[0], Pv[1], Pv[2],
                                                      1.0f, (nf_u8)(1u<<c));
                 ++n_raw;
@@ -539,11 +555,42 @@ int main(int argc, char **argv) {
                     const float wy = gp.y_min + ((float)cy + 0.5f) * gp.vox_mm;
                     const int px = (int)((wx - xmin) / (xmax - xmin) * bw);
                     const int py = (int)((ymax - wy) / (ymax - ymin) * bh);
-                    /* 颜色: 按最高层数, 低=蓝 高=红 */
-                    const float t = nz / 6.0f > 1.0f ? 1.0f : nz / 6.0f;
-                    const unsigned char r = (unsigned char)(60 + 195 * t);
-                    const unsigned char g = (unsigned char)(120 * (1.0f - t) + 40);
-                    const unsigned char b = (unsigned char)(220 * (1.0f - t) + 30);
+                    /**
+                     * **按来源视口着色**（而不是按占用层数）。
+                     *
+                     * 这样一眼能看出：哪些区域是哪个视口贡献的、哪里是
+                     * 多视口重叠（重叠处更可信）、哪里是单一视口独撑。
+                     *
+                     * 同一格被多个视口覆盖 -> 混成白色系；
+                     * 单视口 -> 用该视口的专用色。
+                     */
+                    const nf_u8 vm = cell_view[cell];
+                    int nv_cell = 0, last_v = -1;
+                    for (int k = 0; k < 8; ++k)
+                        if (vm & (1u << k)) { ++nv_cell; last_v = k; }
+                    unsigned char r, g, b;
+                    if (nv_cell >= 2) {
+                        /* 多视口重叠：浅灰白，加亮表示重叠 */
+                        const unsigned char v = (unsigned char)(150 + 20 * (nv_cell > 4 ? 4 : nv_cell));
+                        r = g = b = v;
+                    } else if (last_v >= 0 && last_v < 6) {
+                        static const unsigned char VC[6][3] = {
+                            {230,  60,  60},   /* 0 FV_p-45  红 */
+                            {250, 140,  40},   /* 1 FV_p+45  橙 */
+                            { 60, 170,  70},   /* 2 RV_p-45  绿 */
+                            { 40, 190, 200},   /* 3 RV_p+45  青 */
+                            {120,  90, 220},   /* 4 ML       紫 */
+                            {230,  70, 180},   /* 5 MR       品红 */
+                        };
+                        r = VC[last_v][0]; g = VC[last_v][1]; b = VC[last_v][2];
+                        /* 高度做轻微明暗（层数多则更亮），保留高度信息 */
+                        const int lift = nz > 1 ? 20 : 0;
+                        r = (unsigned char)(r + lift > 255 ? 255 : r + lift);
+                        g = (unsigned char)(g + lift > 255 ? 255 : g + lift);
+                        b = (unsigned char)(b + lift > 255 ? 255 : b + lift);
+                    } else {
+                        r = g = b = 160;
+                    }
                     for (int dy = -2; dy <= 2; ++dy)
                         for (int dx = -2; dx <= 2; ++dx)
                             put(px + dx, py + dy, r, g, b);
@@ -567,7 +614,97 @@ int main(int argc, char **argv) {
         }
 
         char p[512];
+        /* ---------- FOV 扇形：每个视口的水平覆盖范围 ---------- */
+        {
+            /**
+             * 每个视口画一条**扇形边界**（同色系但更暗，避免盖住占用格）。
+             *
+             * 扇形数据来源：虚拟相机的水平张角 ±hfov/2，绕 yaw 展开。
+             * 地面可见距离不是固定值（pitch=0 时向下 60° 看 393mm，
+             * 水平方向看无穷远），故半径统一按视口中心到网格边缘画，
+             * 仅表达**方位覆盖**，不代表距离。
+             */
+            static const unsigned char VC2[6][3] = {
+                {150,  30,  30}, {170,  95,  25}, { 40, 120,  50},
+                { 25, 130, 140}, { 80,  60, 155}, {155,  45, 125},
+            };
+            const float hfov_half = NF_V_VIEW_HFOV_DEG * 0.5f;
+            for (int vi2 = 0; vi2 < nview; ++vi2) {
+                const float yawc = kViews[vi2].yaw;
+                const int camv = kViews[vi2].cam;
+                /* 以该相机光心为扇形顶点 */
+                const float ox = cal.pose[camv].t[0];
+                const float oy = cal.pose[camv].t[1];
+                const int pox = (int)((ox - xmin) / (xmax - xmin) * bw);
+                const int poy = (int)((ymax - oy) / (ymax - ymin) * bh);
+                const float R = 420.0f;      /* 像素半径 */
+                auto draw_ray = [&](float ang_deg, int step) {
+                    const float a = ang_deg * (float)(M_PI / 180.0);
+                    for (float rr = 0; rr < R; rr += 2.0f) {
+                        const int px = pox + (int)(rr * std::cos(a));
+                        const int py = poy - (int)(rr * std::sin(a));
+                        if (step == 1 && ((int)rr % 6) < 3) continue;  /* 虚线 */
+                        put(px, py, VC2[vi2][0], VC2[vi2][1], VC2[vi2][2]);
+                    }
+                };
+                draw_ray(yawc - hfov_half, 0);
+                draw_ray(yawc + hfov_half, 0);
+                draw_ray(yawc, 1);                       /* 中轴虚线 */
+            }
+        }
+
         std::snprintf(p, sizeof(p), "%s/05_bev.ppm", outdir);
+        /* ---------- 图例：视口 -> 颜色 ---------- */
+        {
+            static const unsigned char VC3[6][3] = {
+                {230,  60,  60}, {250, 140,  40}, { 60, 170,  70},
+                { 40, 190, 200}, {120,  90, 220}, {230,  70, 180},
+            };
+            const int lx = 12, ly = 12, lw = 120, lh = 6 * 22 + 30;
+            /* 白底框 */
+            for (int yy = 0; yy < lh; ++yy)
+                for (int xx = 0; xx < lw; ++xx) {
+                    const int px = lx + xx, py = ly + yy;
+                    if (px < 0 || py < 0 || px >= bw || py >= bh) continue;
+                    unsigned char *q = &img[((size_t)py * bw + px) * 3];
+                    const bool border = (xx < 1 || yy < 1 || xx >= lw - 1 || yy >= lh - 1);
+                    q[0] = q[1] = q[2] = border ? 40 : 252;
+                }
+            /* 6 个色块 */
+            for (int k = 0; k < 6; ++k) {
+                const int sy = ly + 8 + k * 22;
+                for (int yy = 0; yy < 14; ++yy)
+                    for (int xx = 0; xx < 14; ++xx) {
+                        const int px = lx + 8 + xx, py = sy + yy;
+                        if (px < 0 || py < 0 || px >= bw || py >= bh) continue;
+                        unsigned char *q = &img[((size_t)py * bw + px) * 3];
+                        q[0] = VC3[k][0]; q[1] = VC3[k][1]; q[2] = VC3[k][2];
+                    }
+                /* 色块右侧的简易标记（用点阵表示视口编号 1..6） */
+                const int nx = lx + 8 + 20;
+                for (int d = 0; d < k + 1; ++d) {
+                    const int px = nx + d * 5;
+                    const int py = sy + 7;
+                    for (int yy = -1; yy <= 1; ++yy)
+                        for (int xx = -1; xx <= 1; ++xx) {
+                            const int qx = px + xx, qy = py + yy;
+                            if (qx < 0 || qy < 0 || qx >= bw || qy >= bh) continue;
+                            unsigned char *q = &img[((size_t)qy * bw + qx) * 3];
+                            q[0] = q[1] = q[2] = 30;
+                        }
+                }
+            }
+            /* 图例底部的"多视口重叠"色块 */
+            const int oy = ly + 8 + 6 * 22 - 4;
+            for (int yy = 0; yy < 8; ++yy)
+                for (int xx = 0; xx < 14; ++xx) {
+                    const int px = lx + 8 + xx, py = oy + yy;
+                    if (px < 0 || py < 0 || px >= bw || py >= bh) continue;
+                    unsigned char *q = &img[((size_t)py * bw + px) * 3];
+                    q[0] = q[1] = q[2] = 170;
+                }
+        }
+
         write_ppm_rgb(p, img.data(), bw, bh);
         std::printf("已输出 05_bev.ppm\n");
 

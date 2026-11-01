@@ -79,10 +79,10 @@ if p.exists():
     im = Image.open(p).convert("RGB")
     canvas = Image.new("RGB", (im.width + 28, im.height + 92), "white")
     dr = ImageDraw.Draw(canvas)
-    dr.text((14, 14), "⑤ Voxel 分层 BEV（俯视，x 向上为车头 +X）",
+    dr.text((14, 14), "⑤ Voxel 分层 BEV + 6 视口 FOV 分色（俯视，x 向上为车头 +X）",
             font=FONT, fill="#111111")
     dr.text((14, 52),
-            "每像素 = 200mm 体素柱；颜色按该柱占用层数（蓝=1 层，红=6+ 层）；黑框=车体 5000x2000",
+            "每像素 = 200mm 体素柱；颜色=来源视口（灰白=多视口重叠）；细线=各视口 FOV 边界；黑框=车体 5000x2000",
             font=FONT_S, fill="#777777")
     canvas.paste(im, (14, 86))
     out = VIZ / "sheet_5_bev.png"
