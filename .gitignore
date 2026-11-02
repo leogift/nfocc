@@ -43,3 +43,6 @@ venv/
 
 # ---- 本地日志 ----
 *.log
+
+# ---- 报告构建中间件（可由 tools/build_arch_report.py 重建）----
+docs/report/*.html

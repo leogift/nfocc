@@ -10,6 +10,15 @@
 #include <cstring>
 #include <algorithm>
 
+/**
+ * 导出用的临时条目。
+ *
+ * **必须在 NFVoxelCtx 之前定义** —— 该缓冲现在由 ctx 持有，
+ * 结构体里要用到 sizeof(ExportItem)。
+ */
+struct ExportItem { nf_f32 prob; nf_u32 slot; };
+inline bool cmp_desc(const ExportItem &a, const ExportItem &b) { return a.prob > b.prob; }
+
 struct NFVoxelCtx {
     NFVoxelGridParams g;
     NFVoxelEntry     *slots;
@@ -17,6 +26,15 @@ struct NFVoxelCtx {
     nf_u32            count;
     nf_u32            collisions;
     nf_f32            n_eff_max;
+    /**
+     * 导出临时缓冲，容量 = capacity。
+     *
+     * **零堆分配**: 原实现在 `nf_voxel_export_points` 里每帧
+     * `malloc(count*sizeof)` + `free`，长时间运行产生堆碎片与随机延迟毛刺
+     * （实测帧耗时的 P99 明显高于中位数）。改为初始化期一次分配、
+     * 运行期复用。
+     */
+    void             *scratch_items;
 };
 
 namespace {
@@ -122,6 +140,9 @@ NFStatus nf_voxel_create(NFVoxelCtx **ctx, const NFVoxelGridParams *g,
     if (!c) return NF_E_ENGINE_OOM;
     c->slots = (NFVoxelEntry *)std::calloc(capacity, sizeof(NFVoxelEntry));
     if (!c->slots) { std::free(c); return NF_E_ENGINE_OOM; }
+    /* 导出临时缓冲：一次分配、长期复用（零堆分配改造） */
+    c->scratch_items = std::malloc((size_t)capacity * sizeof(ExportItem));
+    if (!c->scratch_items) { std::free(c->slots); std::free(c); return NF_E_ENGINE_OOM; }
 
     c->g = *g;
     c->capacity = capacity;
@@ -134,6 +155,7 @@ NFStatus nf_voxel_create(NFVoxelCtx **ctx, const NFVoxelGridParams *g,
 
 void nf_voxel_destroy(NFVoxelCtx *ctx) {
     if (!ctx) return;
+    std::free(ctx->scratch_items);
     std::free(ctx->slots);
     std::free(ctx);
 }
@@ -283,18 +305,14 @@ void nf_pointcloud_destroy(NFPointCloud *pc) {
     pc->max_points = 0;
 }
 
-namespace {
-struct ExportItem { nf_f32 prob; nf_u32 slot; };
-inline bool cmp_desc(const ExportItem &a, const ExportItem &b) { return a.prob > b.prob; }
-} // namespace
-
 NFStatus nf_voxel_export_points(const NFVoxelCtx *ctx, NFPointCloud *pc) {
     if (!ctx || !pc) return NF_E_PARAM_NULL;
     if (!pc->points) return NF_E_PARAM_NULL;
 
-    /* 收集有效条目 */
+    /* 收集有效条目 —— 复用 ctx 预分配的 scratch，**不再每帧 malloc**。
+     * scratch 是纯缓存，语义上可写；ctx 为 const 只是防误改配置。 */
     nf_u32 n = 0;
-    ExportItem *items = (ExportItem *)std::malloc((size_t)ctx->count * sizeof(ExportItem));
+    ExportItem *items = (ExportItem *)((NFVoxelCtx *)ctx)->scratch_items;
     if (!items && ctx->count) return NF_E_ENGINE_OOM;
 
     for (nf_u32 s = 0; s < ctx->capacity; ++s) {
@@ -322,12 +340,21 @@ NFStatus nf_voxel_export_points(const NFVoxelCtx *ctx, NFPointCloud *pc) {
         pt->y_mm = (nf_i32)(e->cy >= 0.0f ? e->cy + 0.5f : e->cy - 0.5f);
         pt->z_mm = (nf_i32)(e->cz >= 0.0f ? e->cz + 0.5f : e->cz - 0.5f);
         pt->source_camera = e->source_mask;
-        pt->sigma_cm = 255;                /* 由调用方按 σ 填充 */
+        /**
+         * **输出真实不确定度，不再硬编码 255。**
+         *
+         * 原实现写死 255（"不可知"哨兵），下游拿到的每个点都不确定度超限，
+         * 等于整套方差传播白算。现在取 CMA 聚合后维护的
+         * `entry->sigma_cm`（插入时按最小聚合，D4 验证后可再减半）。
+         * 从未被 with_sigma 插入过的条目仍是 0 —— 统一收敛成 255 哨兵，
+         * 避免下游把 0 cm 当成"绝对精确"。
+         */
+        pt->sigma_cm = (e->sigma_cm == 0u) ? 255u : e->sigma_cm;
         nf_f32 p = items[i].prob * 100.0f;
         pt->existence_prob = (nf_u8)(p > 100.0f ? 100.0f : p);
     }
     pc->num_points = n;
-    std::free(items);
+    /* items 归 ctx 所有，不释放 */
     return pc->overflow ? NF_E_OUTPUT_OVERFLOW : NF_OK;
 }
 

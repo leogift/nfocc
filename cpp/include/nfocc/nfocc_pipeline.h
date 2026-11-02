@@ -60,6 +60,18 @@ typedef struct {
 
     /** 视口水平张角 (deg), 0 表示用 NF_V_VIEW_HFOV_DEG */
     nf_f32 view_hfov_deg;
+
+    /**
+     * D1 车身掩码 [view_w * view_h]，1 = 车身遮挡，NULL = 不启用。
+     *
+     * ## 为什么在配置里而不是每帧输入里
+     * LUT 是 `nf_pipeline_create` 一次性构建的（相机内外参不变），
+     * 掩码决定 LUT 的 `valid` 位，也属于**静态几何**，因此必须是
+     * 创建期输入。放在帧输入里会让人误以为可以逐帧换。
+     *
+     * 由 `nf_mask_rasterize_polygon` 从车体轮廓多边形生成。
+     */
+    const nf_u8 *body_mask;
 } NFPipelineConfig;
 
 /** 单帧输入 */

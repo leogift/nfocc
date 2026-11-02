@@ -25,11 +25,11 @@ Compiler/Runtime: MinGW GCC 13.2.0, CMake 4.4.0, ZeroMQ, OpenCV SGBM, OpenMP
   - 修复 `CMakeLists.txt` 中缺失的 ZLIB 探测，添加 Windows/MinGW 便携路径 fallback。
 
 --------------------------------------------------------------------------------
-## [REV-002] NFORM 算法体系深度对齐：自适应多帧双基线管理器与 2D 高程连续柱状压缩 (v0.6.0)
+## [REV-002]参考量产系统算法体系深度对齐：自适应多帧双基线管理器与 2D 高程连续柱状压缩 (v0.6.0)
 --------------------------------------------------------------------------------
 ### 1. 业务痛点与改进动因
 - **基线状态机脆弱**: 原 `nf_gate_decide` 为单帧无状态瞬时判定，车速波动时极易频繁进入 FROZEN 冻结，缺乏历史平滑与多帧自适应能力。
-- **高程图未排序**: 原 `nf_grid_flatten` 仅压平数组，下游提取任意网格柱体点云仍需遍历整体哈希表，无法实现 NFORM 的 O(1) 连续寻址。
+- **高程图未排序**: 原 `nf_grid_flatten` 仅压平数组，下游提取任意网格柱体点云仍需遍历整体哈希表，无法实现参考量产系统的 O(1) 连续寻址。
 - **掩码生成繁琐**: 缺乏从车体几何多边形到点阵掩码的轻量级自动化生成机制。
 
 ### 2. 修改目标与符号契约
@@ -40,7 +40,7 @@ Compiler/Runtime: MinGW GCC 13.2.0, CMake 4.4.0, ZeroMQ, OpenCV SGBM, OpenMP
   - 实现 `nf_baseline_manager_decide(mgr, out_dec)`:
     - 采用车体基准位移 (Datum Delta) 统一各相机触发门限，解决转弯时外内侧基线差异导致的失步。
     - 航向角微分保护: 若两帧间 yaw 漂移超过 `max_yaw_deg` (15°)，判定为 `NF_MODE_FROZEN_ROT` 并重置参考帧。
-    - NFORM 并行双基线机制 (Parallel Dual Baselines): 同时维护 `prev_idx_short` 与 `prev_idx_long`。当长基线累积达 `b_target` 触发产出时，自动将短基线晋升为下一轮长基线，彻底消除速度变化时的感知空白期。
+    -参考量产系统并行双基线机制 (Parallel Dual Baselines): 同时维护 `prev_idx_short` 与 `prev_idx_long`。当长基线累积达 `b_target` 触发产出时，自动将短基线晋升为下一轮长基线，彻底消除速度变化时的感知空白期。
 - **cpp/include/nfocc/nfocc_voxel.h** & **cpp/src/voxel/voxel.cpp**:
   - 新增 API: `nf_voxel_transform_columnar(ctx, grid_out, pc)`
     - 算法步骤 1: 扫描哈希表有效条目，在 `grid_out->zmap` 对应列置位 `1 << iz`。

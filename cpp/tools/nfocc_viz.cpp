@@ -237,7 +237,9 @@ int main(int argc, char **argv) {
     const nf_u32 viz_n_cells = gp.nx * gp.ny;
     std::vector<nf_u8> cell_view(viz_n_cells, 0);
 
-    nf_u32 n_raw = 0, n_ins = 0, n_full = 0, n_out = 0;
+    nf_u32 n_raw = 0, n_ins = 0, n_full = 0, n_out = 0, n_foe = 0;
+    /* sigma 直方图: <10, <30, <60, <100, >=100 cm */
+    nf_u32 sig_hist[5] = { 0, 0, 0, 0, 0 };
     float pmin[3] = { 1e9f, 1e9f, 1e9f }, pmax[3] = { -1e9f, -1e9f, -1e9f };
     nf_u32 bins[4] = { 0, 0, 0, 0 };
     nf_u32 n_far = 0;
@@ -470,9 +472,32 @@ int main(int argc, char **argv) {
                         cell_view[cell] |= (nf_u8)(1u << vi);
                     }
                 }
-                const NFStatus ins = nf_voxel_insert(vox, Pv[0], Pv[1], Pv[2],
-                                                     1.0f, (nf_u8)(1u<<c));
+                /**
+                 * **D3: FoE 发散锥过滤**。
+                 *
+                 * 平移方向上的点在立体匹配里几乎不产生视差，深度是退化的；
+                 * 硬解会得到几十米外的"拉丝"幽灵点。锥内直接丢弃。
+                 * apex 必须是**相机光心**（pose->t），不是平移向量。
+                 */
+                const float tvn = std::sqrt(tVcar[0]*tVcar[0] + tVcar[1]*tVcar[1]
+                                            + tVcar[2]*tVcar[2]);
+                if (tvn > 1e-3f) {
+                    const float dv[3] = { tVcar[0]/tvn, tVcar[1]/tvn, tVcar[2]/tvn };
+                    if (nf_pt_in_foe(Pv, pose->t, dv, 0.9806f)) { ++n_foe; continue; }
+                }
+
+                /* ---- 方差传播：真实视差 + 真实基线 -> sigma_cm ---- */
+                const nf_u8 sig = nf_compute_spatial_uncertainty_cm(
+                    vp.f, tvn, d, 0.5f, 0.02f);
+
+                const NFStatus ins = nf_voxel_insert_with_sigma(vox, Pv[0], Pv[1], Pv[2],
+                                                                1.0f, (nf_u8)(1u<<c), sig);
                 ++n_raw;
+                if (sig < 10u) ++sig_hist[0];
+                else if (sig < 30u) ++sig_hist[1];
+                else if (sig < 60u) ++sig_hist[2];
+                else if (sig < 100u) ++sig_hist[3];
+                else ++sig_hist[4];
                 for (int k = 0; k < 3; ++k) {
                     if (Pv[k] < pmin[k]) pmin[k] = Pv[k];
                     if (Pv[k] > pmax[k]) pmax[k] = Pv[k];
@@ -502,6 +527,9 @@ int main(int argc, char **argv) {
                 n_raw, n_ins, n_far, n_full, n_out);
     std::printf("s0 分布: <1m %u | 1-10m %u | 10m-1km %u | >1km %u\n",
                 bins[0], bins[1], bins[2], bins[3]);
+    std::printf("D3 FoE 锥内剔除: %u\n", n_foe);
+    std::printf("sigma_cm 分布: <10 %u | <30 %u | <60 %u | <100 %u | >=100 %u\n",
+                sig_hist[0], sig_hist[1], sig_hist[2], sig_hist[3], sig_hist[4]);
     std::printf("点云范围 x[%.0f,%.0f] y[%.0f,%.0f] z[%.0f,%.0f]\n",
                 (double)pmin[0], (double)pmax[0], (double)pmin[1], (double)pmax[1],
                 (double)pmin[2], (double)pmax[2]);

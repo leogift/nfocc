@@ -15,11 +15,13 @@
 | 0b | `SPEC-DATASET.md` | hanqtech 真实数据接入：内参/外参/环带语义/实测 |
 | 0c | `SPEC-CONVENTION.md` | **坐标系与 t_cam 语义（唯一权威）** |
 | 0d | `REV-001-002-IMPLEMENTATION.md` | REV-001/002 实施记录：D1-D4、双基线、柱体排布 |
-| 1a | `0_SKILL.txt` | 近场鱼眼感知开发技能（NFXX 六模块精要） |
+| 1a | `0_SKILL.txt` | 近场鱼眼感知开发技能（参考量产系统六模块精要） |
 | 1b | `1_NFOCC待办.txt` | 与量产系统的六项差距与弥合路径 |
 | 1c | `2_SPEC-ALGORITHM-DERIVATION.md` | 算法改进的数学依据（含自带验证报告） |
 | 1d | `3_REFACTOR-REPRODUCTION-GUIDE.md` | 工程改进复现指南 |
 | 1e | `4_REFACTOR-LOG-ACTIONS.md` | REV-001/REV-002 修改记录 |
+| 2a | `VALIDATION-REPORT.md` | 三份文档合入审计 + 真实数据各阶段验证 |
+| 2b | `report/ARCH-REPORT.md` | 架构/Pipeline/流程解析（PDF: `report/NFOCC-架构与流程解析.pdf`） |
 | 1 | `SPEC-COORD.md` | 点、向量、矩阵、旋转到底怎么定义？谁是谁的转置？ |
 | 2 | `SPEC-CAMERA.md` | 4 路鱼眼的内参模型（KB）、图像格式、有效像素区 |
 | 2a | `SPEC-CALIB-CFG.md` | 相机内外参配置文件格式与默认值（f=550、车 5000×2000） |

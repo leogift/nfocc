@@ -84,6 +84,15 @@ inline float cfg_view_f(const NFPipeline *p) { return p->cfg.view.f; }
 
 } // namespace
 
+/**
+ * 本地 π 常量。
+ *
+ * **不要用 M_PI**：MinGW-W64 在 `-std=c++11` 严格模式下 `<cmath>` 不会
+ * 暴露 POSIX 宏，编译直接报 "M_PI was not declared"（陷阱 5）。
+ * 自己定义一份，跨工具链一致。
+ */
+static const float kPiF = 3.14159265358979323846f;
+
 extern "C" {
 
 NFStatus nf_params_validate(const NFPipelineConfig *cfg,
@@ -198,8 +207,12 @@ NFStatus nf_pipeline_create(NFPipeline **pp, const NFPipelineConfig *cfg,
         p->view_cam[c] = vp_c;
 
         NFLutStats stats;
+        /* **D1 车身掩码接线**：此前这里传 nullptr，导致车体反光、车标、
+         * 保险杠在点云里形成一层贴着车身的假障碍（实测 BEV 上车体轮廓
+         * 一圈恒亮）。掩码在 LUT 构建期就把这些像素判为无效 —— 源头掐灭，
+         * 下游零代价。cfg.body_mask 为 NULL 时行为不变。 */
         st = nf_lut_build(&p->lut[c], &p->cams[c], &p->poses[c],
-                          &vp_c, nullptr, &stats);
+                          &vp_c, p->cfg.body_mask, &stats);
         if (st == NF_E_LUT_EMPTY) {
             /* 该虚拟视口完全落在本相机视场外 —— 正常工况。
              * 例: RV 相机 yaw=0（朝车头）时，车尾鱼眼根本拍不到。
@@ -473,7 +486,21 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
                          * 视口偏转后视口系 != 车系, 混用车系 t 会让解出的
                          * 距离落到几十米外被下面的 50000mm 门限拒掉 ——
                          * 实测 45° 偏转时 cam0 产出从 1380 掉到 0。 */
-                        const float tt[3] = { t_view[0], t_view[1], t_view[2] };
+                        /**
+                         * **t 必须转到车系再用**（陷阱 1 的后半段）。
+                         *
+                         * `t_view` 是视口系位移，而 `pose->t` 是车系光心、
+                         * `a`/`b` 也是车系射线。直接 `pose->t - t_view`
+                         * 是在**混基相减**，偏转 0° 时恰好相等（不暴露），
+                         * 偏转后顶点会整体偏一个基线向量。
+                         */
+                        const float yaw_f = p->cfg.view_yaw_deg[c] * (kPiF / 180.0f);
+                        const float cyf = std::cos(yaw_f), syf = std::sin(yaw_f);
+                        const float tt[3] = {
+                            t_view[0]*cyf - t_view[1]*syf,
+                            t_view[0]*syf + t_view[1]*cyf,
+                            t_view[2],
+                        };
                         float dist = 0.0f;
                         nf_u8 okp = 0;
                         nf_forward_range(a, b, 1, tt, &dist, &okp);
@@ -481,13 +508,34 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
 
                         /* 物点 = 参考帧光心 + b*dist = 当前光心 + a*(dist - 沿a的分量)。
                          * 直接由 b 构造: 参考帧光心 = 当前光心 - t */
+                        /* P = 参考帧光心 + b*dist，其中参考帧光心 = 当前光心 - t_veh。
+                         * 注意 b 是**参考帧射线**，不是当前帧射线 —— 两者不要混用，
+                         * 否则会得到 `C_curr - t + d_curr*dist` 那种物理上错的式子。 */
                         const float P[3] = {
                             pose->t[0] - tt[0] + b[0] * dist,
                             pose->t[1] - tt[1] + b[1] * dist,
                             pose->t[2] - tt[2] + b[2] * dist
                         };
-                        if (nf_voxel_insert(p->voxel, P[0], P[1], P[2],
-                                            p->m_conf[i], (nf_u8)(1u << c)) == NF_OK)
+
+                        /* ---- D3: FoE 发散锥过滤 ----
+                         * 前向工况平移方向≈视线方向，沿轴线的点深度退化，
+                         * 会解出几十米外的"拉丝"幽灵点。锥内直接丢弃。 */
+                        const float tn = std::sqrt(tt[0]*tt[0] + tt[1]*tt[1] + tt[2]*tt[2]);
+                        if (tn > 1e-3f) {
+                            const float dir[3] = { tt[0]/tn, tt[1]/tn, tt[2]/tn };
+                            if (nf_pt_in_foe(P, pose->t, dir, 0.9806f)) continue;
+                        }
+
+                        /* ---- 方差传播: 由距离反推等效视差，再算 sigma ---- */
+                        const float b_len = tn;
+                        const nf_u8 sig = (b_len > 1e-3f)
+                            ? nf_compute_spatial_uncertainty_cm(
+                                  cfg_view_f(p), b_len,
+                                  cfg_view_f(p) * b_len / dist, 0.5f, 0.02f)
+                            : 255u;
+                        if (nf_voxel_insert_with_sigma(p->voxel, P[0], P[1], P[2],
+                                                       p->m_conf[i], (nf_u8)(1u << c),
+                                                       sig) == NF_OK)
                             ++fwd_pts;
                     }
                 }
@@ -605,7 +653,7 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
                  *
                  * 故这里把 t_view 转到车系: v_V = Rz(yaw) · v_S
                  */
-                const float yaw_r = p->cfg.view_yaw_deg[c] * (float)(M_PI / 180.0);
+                const float yaw_r = p->cfg.view_yaw_deg[c] * (kPiF / 180.0f);
                 const float cyr = std::cos(yaw_r), syr = std::sin(yaw_r);
                 const float tV_car[3] = {
                     t_view[0]*cyr - t_view[1]*syr,
@@ -636,8 +684,21 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
                     r0[1]*s0 + pose->t[1],
                     r0[2]*s0 + pose->t[2],
                 };
-                if (nf_voxel_insert(p->voxel, Pv[0], Pv[1], Pv[2],
-                                   p->dmap[c].conf[i], (nf_u8)(1u << c)) == NF_OK)
+                /* ---- D3: FoE 锥过滤（用已转车系的 tV_car）---- */
+                const float tn2 = std::sqrt(tV_car[0]*tV_car[0] + tV_car[1]*tV_car[1]
+                                            + tV_car[2]*tV_car[2]);
+                if (tn2 > 1e-3f) {
+                    const float dir2[3] = { tV_car[0]/tn2, tV_car[1]/tn2, tV_car[2]/tn2 };
+                    if (nf_pt_in_foe(Pv, pose->t, dir2, 0.9806f)) continue;
+                }
+
+                /* ---- 方差传播：真实视差 + 真实基线 ---- */
+                const nf_u8 sig2 = nf_compute_spatial_uncertainty_cm(
+                    cfg_view_f(p), dec.baseline_mm, d, 0.5f, 0.02f);
+
+                if (nf_voxel_insert_with_sigma(p->voxel, Pv[0], Pv[1], Pv[2],
+                                               p->dmap[c].conf[i], (nf_u8)(1u << c),
+                                               sig2) == NF_OK)
                     ++inserted;
             }
         }
