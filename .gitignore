@@ -1,48 +1,158 @@
-# ---- 构建产物（不入库）----
+# ============================================================
+# NFOCC .gitignore
+# ============================================================
+# 原则：只入库"源码 + 文档 + 配置"。任何能由构建/脚本再生的一律排除。
+# 例外：third_party/MANIFEST.txt 要入库 —— 它记录了第三方库的
+#       版本与来源，是"这次构建用的到底是哪个版本"的唯一凭据。
+
+# ---------------------------------------------------------------- macOS
+# AppleDouble 资源分支。在 exFAT / 网络卷 / 部分 U 盘上，
+# macOS 会为**每个文件**生成一个 ._xxx 伴随文件。
+# 实测本项目工作区一次产生 1573 个，把 GLOB 源文件列表污染成编译错误。
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+Icon?
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# ---------------------------------------------------------------- 构建产物
 build/
+build-*/
 cmake-build-*/
+out/
+install/
 *.o
+*.obj
+*.lo
 *.a
+*.lib
 *.so
+*.so.*
 *.dylib
 *.dll
 *.exe
+*.out
+*.app
+*.dSYM/
+*.pdb
+*.ilk
+*.gcda
+*.gcno
+*.gcov
+
+# CMake 生成物
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+CTestTestfile.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
+install_manifest.txt
+Makefile
+ninja.build
+.ninja_deps
+.ninja_log
+compile_commands.json
+Testing/
+CMakeUserPresets.json
+
+# ---------------------------------------------------------------- 可执行文件
+# 工具产出（构建时生成，不入库）
+cpp/build/
 nfocc_run
 nfocc_gen
 nfocc_sink
 nfocc_viz
-compile_commands.json
-CMakeCache.txt
-CMakeFiles/
-CPackConfig.cmake
-CPackSourceConfig.cmake
-Makefile
-cmake_install.cmake
+nfocc_disp_probe
+nfocc_disturb_gen
 
-# ---- 调试输出 ----
+# ---------------------------------------------------------------- 运行产物
+# 可视化中间件与调试输出（可由 nfocc_viz 重建）
 viz/
 out/
+*.ppm
+*.pgm
+*.pbm
+!docs/**/*.png
 
-# ---- 数据集（体积大，含第三方授权内容）----
+# 报告构建中间件（可由 tools/build_arch_report.py 重建）
+docs/report/*.html
+
+# ---------------------------------------------------------------- 数据
+# 数据集体积大且含第三方授权内容，不入库
 datasets/
+*.pkl
+*.npz
+*.npy
+*.bag
+*.mcap
 
-# ---- Python ----
+# ---------------------------------------------------------------- 三方库
+#
+# **路径层级很重要**：本项目的三方目录在 `cpp/third_party/`，不是 `third_party/`。
+# 写 `third_party/*` 一条都不会命中（git 的 `*` 不跨目录），等于没写。
+#
+# 库里已有的 8 个文件是**头文件符号链接与 MANIFEST**，必须保留：
+#   cpp/third_party/{eigen,libomp,onnxruntime,openblas}/include
+#   cpp/third_party/MANIFEST.txt
+# 只忽略其中的**二进制与构建产物**，头文件与清单继续跟踪。
+cpp/third_party/*/lib/
+cpp/third_party/*/bin/
+cpp/third_party/*/lib64/
+third_party/*/lib/
+third_party/*/bin/
+
+# ---------------------------------------------------------------- 进行中工作
+# 暂缓的技术路线（如 D2）放在这里，不进构建但也不丢
+.wip/
+
+# ---------------------------------------------------------------- Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
 *.egg-info/
+.eggs/
+dist/
+build/
 .venv/
 venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
 
-# ---- 编辑器 / 系统 ----
-.DS_Store
-._*
-.idea/
+# ---------------------------------------------------------------- 编辑器
 .vscode/
+.idea/
 *.swp
+*.swo
 *~
+*.sublime-workspace
+*.sublime-project
 
-# ---- 本地日志 ----
+# ---------------------------------------------------------------- 日志与临时
 *.log
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+core
+core.*
 
-# ---- 报告构建中间件（可由 tools/build_arch_report.py 重建）----
-docs/report/*.html
+# ---------------------------------------------------------------- 凭据
+# 绝不入库
+.env
+.env.*
+*.pem
+*.key
+id_rsa*
+credentials*
+secrets*

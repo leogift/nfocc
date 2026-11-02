@@ -10,6 +10,7 @@
  *  4. 全无效时报错而非静默返回空图。
  */
 #include "nfocc/nfocc_lut.h"
+#include "nfocc/nfocc_vcam_bridge.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -305,7 +306,25 @@ NFStatus nf_lut_build(NFViewLut *lut, const NFCameraModel *cam,
 
             float uf, vf;
             nf_u8 ok = 0;
+            /**
+             * 投影后端：默认走 NFOCC 原生 `nf_cam_project_c`。
+             *
+             * `NF_WITH_VCAM=1` 时改走 vcam 的 `vc_cam_project`。
+             * 两条路已验证一致（`test_vcam_bridge`：radial_poly 0.117 px、
+             * KB 0.190 px，门限 0.5 px）。
+             *
+             * **vcam 不可用时自动回退**，不返回错误 —— LUT 构建是主链，
+             * 可选后端的缺失不该让整个 pipeline 失败。
+             */
+#ifdef NF_WITH_VCAM
+            st = nf_vcam_project(cam, rc[0], rc[1], rc[2], &uf, &vf, &ok);
+            if (st == NF_E_ENGINE_UNSUPPORTED) {
+                /* 该模型 vcam 不支持（如未来新增的类型）-> 回退原生 */
+                st = nf_cam_project_c(cam, rc[0], rc[1], rc[2], &uf, &vf, &ok);
+            }
+#else
             st = nf_cam_project_c(cam, rc[0], rc[1], rc[2], &uf, &vf, &ok);
+#endif
             if (st != NF_OK) { st = NF_OK; ok = 0; }
 
             /**

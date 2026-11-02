@@ -486,7 +486,7 @@ int main(int argc, char **argv) {
     std::printf("\n--- 统计 ---\n");
     std::printf("帧数 %d, 平均耗时 %.1f ms/帧\n", n_frames,
                 n_frames ? t_total / n_frames : 0.0);
-    std::printf("累计点数 %u (平均 %.0f/帧)\n", total_points,
+        std::printf("累计点数 %u (平均 %.0f/帧)\n", total_points,
                 n_frames ? (double)total_points / n_frames : 0.0);
     const double rss2 = rss_mb();
     if (rss2 >= 0) std::printf("稳态 RSS: %.1f MB (预算 %.1f MB, 偏差 %.1f%%)\n",

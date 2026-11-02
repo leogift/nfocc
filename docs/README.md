@@ -30,6 +30,7 @@
 | 2h | `PLAN-ONLINE-CALIBRATION.md` | **自校准方案**：三种路线对比与可行性 |
 | 2i | `PLAN-CLUSTERING.md` | **聚类与动静分离**：算法选型与数据规模分析 |
 | 2j | `SPEC-DEPTH-ACCEPTANCE.md` | **验收标准**：150mm 的分距离段适用范围 |
+| 2k | `BUILD-CROSSPLATFORM.md` | **构建调试**：macOS/Linux 统一 CMake、三方依赖、vcam 后端 |
 | 1 | `SPEC-COORD.md` | 点、向量、矩阵、旋转到底怎么定义？谁是谁的转置？ |
 | 2 | `SPEC-CAMERA.md` | 4 路鱼眼的内参模型（KB）、图像格式、有效像素区 |
 | 2a | `SPEC-CALIB-CFG.md` | 相机内外参配置文件格式与默认值（f=550、车 5000×2000） |

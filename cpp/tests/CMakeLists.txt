@@ -111,6 +111,13 @@ if(TARGET nfocc_engine_sgbm)
   set_tests_properties(depth_accuracy PROPERTIES LABELS integration)
 endif()
 
+# vcam 桥接交叉校验：两个后端的投影必须一致 (< 0.5 px)
+add_executable(test_vcam_bridge unit/test_vcam_bridge.cpp)
+target_include_directories(test_vcam_bridge PRIVATE ${NF_TEST_INC})
+target_link_libraries(test_vcam_bridge PRIVATE nfocc_core)
+add_test(NAME unit_vcam_bridge COMMAND test_vcam_bridge)
+set_tests_properties(unit_vcam_bridge PROPERTIES LABELS unit)
+
 # ---------------------------------------------------------------- 系统测试
 if(TARGET nfocc_run)
   add_test(NAME system_run_synthetic

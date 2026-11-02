@@ -19,12 +19,21 @@ cd "$ROOT"
 JOBS="${NF_JOBS:-$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)}"
 TARGET="${1:-host}"
 
+# vcam 后端（可选）。设置 NF_VCAM_DIR 环境变量即可启用：
+#   NF_VCAM_DIR=/Volumes/Workspace/virtualcamera/cpp ./scripts/build.sh host
+EXTRA_VCAM=()
+if [ -n "${NF_VCAM_DIR:-}" ]; then
+  EXTRA_VCAM+=("-DNF_WITH_VCAM=ON" "-DNF_VCAM_DIR=$NF_VCAM_DIR")
+fi
+
 msg() { printf '\033[1;36m==> %s\033[0m\n' "$*"; }
 
 case "$TARGET" in
   host)
     msg "本机构建 (${JOBS} 线程)"
-    cmake -S . -B build/host -DCMAKE_BUILD_TYPE=Release
+    # macOS 用 sysctl, Linux 用 nproc —— 已在顶部做回退
+    cmake -S . -B build/host -DCMAKE_BUILD_TYPE=Release \
+          ${EXTRA_VCAM[@]+"${EXTRA_VCAM[@]}"}
     cmake --build build/host -j"$JOBS"
     msg "测试"
     ctest --test-dir build/host --output-on-failure
@@ -33,9 +42,24 @@ case "$TARGET" in
   linux)
     msg "Linux PC 构建"
     # Linux 上依赖装在系统路径, 用 managed 模式
-    cmake -S . -B build/linux -DCMAKE_BUILD_TYPE=Release -DNF_DEPS=managed
+    cmake -S . -B build/linux -DCMAKE_BUILD_TYPE=Release -DNF_DEPS=managed \
+          ${EXTRA_VCAM[@]+"${EXTRA_VCAM[@]}"}
     cmake --build build/linux -j"$JOBS"
     ctest --test-dir build/linux --output-on-failure
+    ;;
+
+  debug)
+    # 调试构建：-O0 -g，关闭 NDEBUG 让 assert 生效。
+    # 与 Release 分开目录，避免 cmake 缓存里 BUILD_TYPE 打架。
+    msg "本机调试构建 (Debug, 无优化 + 调试符号)"
+    cmake -S . -B build/debug -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+          ${EXTRA_VCAM[@]+"${EXTRA_VCAM[@]}"}
+    cmake --build build/debug -j"$JOBS"
+    msg "调试构建完成。调试方式："
+    echo "  lldb build/debug/nfocc_run -- --hanqtech ../datasets/fisheye --ws-frame 164"
+    echo "  gdb  build/debug/nfocc_run   (Linux)"
+    echo "  或 VS Code: 用 build/debug/compile_commands.json"
     ;;
 
   aarch64)
@@ -105,12 +129,12 @@ case "$TARGET" in
 
   clean)
     msg "清理构建目录"
-    rm -rf build/host build/linux build/arm build/core
+    rm -rf build/host build/linux build/arm build/core build/debug
     msg "完成"
     ;;
 
   *)
-    echo "用法: $0 {host|linux|aarch64|core|clean}" >&2
+    echo "用法: $0 {host|linux|debug|aarch64|core|clean}" >&2
     exit 2
     ;;
 esac

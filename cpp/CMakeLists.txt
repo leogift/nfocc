@@ -39,6 +39,11 @@ option(NF_BUILD_TOOLS    "构建工具与主程序"             ON)
 option(NF_WITH_OPENCV    "启用 OpenCV (SGBM 引擎)"      ON)
 option(NF_WITH_ZMQ       "启用 ZeroMQ (IO)"            ON)
 option(NF_WITH_ORT       "启用 onnxruntime (模型引擎)"  ON)
+# vcam 后端：用 /Volumes/Workspace/virtualcamera/cpp 的相机模型做投影。
+# 默认 OFF —— 它是可选后端，开启后 nf_vcam_* 系列才有实现；
+# 关闭时桥接层编成返回 UNSUPPORTED 的桩，业务代码无需 #ifdef。
+option(NF_WITH_VCAM      "启用 vcam 相机模型后端"       OFF)
+set(NF_VCAM_DIR "" CACHE PATH "virtualcamera/cpp 源码目录（NF_WITH_VCAM=ON 时必填）")
 option(NF_USE_OPENMP     "启用 OpenMP 并行"             ON)
 option(NF_USE_EIGEN      "启用 Eigen"                  ON)
 option(NF_USE_BLAS       "Eigen 后端使用 OpenBLAS"      ON)
@@ -83,6 +88,47 @@ endif()
 # --- 线程: TaskExecutor / FramePool 需要 pthread ---
 find_package(Threads REQUIRED)
 target_link_libraries(nfocc_core PUBLIC Threads::Threads)
+
+# ---------------------------------------------------------------- vcam 后端
+#
+# 用 virtualcamera/cpp 的相机模型（KB / radial_poly / e-ftheta / pinhole）
+# 替代 NFOCC 自己的投影层。
+#
+# ## 为什么用 add_subdirectory 而不是拷贝源码
+# vcam 是独立工程，自带 CMakeLists 与测试。拷贝进 third_party/ 会产生
+# 两份会漂移的副本。add_subdirectory 让它作为子工程参与同一次构建，
+# 版本由 NF_VCAM_DIR 指向的目录决定（可以是 git submodule）。
+#
+# ## 为什么默认 OFF
+# 它是可选后端。关闭时 vcam_bridge.cpp 编成桩，`nf_vcam_backend()`
+# 返回 NF_VCAM_BACKEND_NONE，业务代码按返回值判断即可。
+set(NF_VCAM_FOUND OFF)
+if(NF_WITH_VCAM)
+  if(NOT NF_VCAM_DIR)
+    message(FATAL_ERROR "NF_WITH_VCAM=ON 但 NF_VCAM_DIR 为空。"
+                        "请传 -DNF_VCAM_DIR=/path/to/virtualcamera/cpp")
+  endif()
+  if(NOT EXISTS "${NF_VCAM_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR "NF_VCAM_DIR 下没有 CMakeLists.txt: ${NF_VCAM_DIR}")
+  endif()
+
+  # vcam 的核心库零三方依赖，这里关掉它的工具层，避免拉进 OpenCV
+  set(VCAM_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+  set(VCAM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  add_subdirectory("${NF_VCAM_DIR}" "${CMAKE_BINARY_DIR}/vcam" EXCLUDE_FROM_ALL)
+
+  if(TARGET vcam_core)
+    set(NF_VCAM_FOUND ON)
+    target_link_libraries(nfocc_core PUBLIC vcam_core)
+    target_compile_definitions(nfocc_core PUBLIC NF_WITH_VCAM=1)
+    message(STATUS "NFOCC: vcam 后端已启用 <- ${NF_VCAM_DIR}")
+  else()
+    message(FATAL_ERROR "vcam 子工程没有产出 vcam_core 目标")
+  endif()
+else()
+  message(STATUS "NFOCC: vcam 后端关闭 (NF_WITH_VCAM=OFF)")
+endif()
+
 
 # --- OpenMP: 按相机/按行并行 ---
 if(NF_USE_OPENMP AND NF_OMP_FOUND)
@@ -222,7 +268,11 @@ target_link_libraries(nfocc_io PUBLIC nfocc_core)
 
 # ---------------------------------------------------------------- 主程序
 if(NF_BUILD_TOOLS)
-  add_executable(nfocc_run tools/nfocc_run.cpp)
+  # 外参扰动序列生成器：模拟急刹急转的 yaw/pitch 偏差，供 D4/自校准验证
+add_executable(nfocc_disturb_gen tools/nfocc_disturb_gen.cpp)
+target_link_libraries(nfocc_disturb_gen PRIVATE nfocc_core)
+
+add_executable(nfocc_run tools/nfocc_run.cpp)
   # **不链接 nfocc_engine_bind**: bind 符号已各自并入引擎库
   target_link_libraries(nfocc_run PRIVATE nfocc_core nfocc_engine_model nfocc_io)
   if(NF_SGBM_ON)
