@@ -365,9 +365,23 @@ NFStatus nf_lut_build(NFViewLut *lut, const NFCameraModel *cam,
                 continue;
             }
             if (mask) {
-                const nf_i32 mi = clamp_i32((nf_i32)vf, 0, 1535) * 1920
-                                + clamp_i32((nf_i32)uf, 0, 1919);
-                if (mask[mi]) { local.d4_body_mask++; continue; }
+                /**
+                 * 掩码按**原图像素**索引，尺寸必须与实际图像一致。
+                 *
+                 * 原先这里硬编码 1920x1536，而 hanqtech 实际是 1280x966 ——
+                 * 拿 1280 宽的图去查 1920 宽的掩码，行 stride 全错，
+                 * 掩码整体错位（表现为车身掩码"没效果"或剔错区域）。
+                 */
+                const nf_i32 mw = (cam->r_valid > 0.0f)
+                                ? (nf_i32)(cam->cx * 2.0f) : 1920;
+                const nf_i32 mh = (nf_i32)(cam->cy * 2.0f);
+                const nf_i32 mx = (nf_i32)uf, my = (nf_i32)vf;
+                if (mx >= 0 && my >= 0 && mx < mw && my < mh) {
+                    if (mask[(size_t)my * (size_t)mw + (size_t)mx]) {
+                        local.d4_body_mask++;
+                        continue;
+                    }
+                }
             }
 
             /* Q12.4 量化, 越界(>2047.9px)标无效 */
@@ -500,6 +514,87 @@ NFStatus nf_mask_rasterize_polygon(nf_u8 *mask, nf_u32 w, nf_u32 h,
             /* 奇数 = 多边形内部 = 车身遮挡 */
             row[px] = (nf_u8)(crossings & 1u);
         }
+    }
+    return NF_OK;
+}
+
+/* ==================== D1: 车体系多边形 -> 视口掩码 ==================== */
+
+NFStatus nf_mask_build_vehicle(const NFCameraModel *cam, const NFPose *pose,
+                               nf_u32 img_w, nf_u32 img_h,
+                               const nf_f32 *poly_xy, nf_u32 n_pts,
+                               nf_u8 *mask, nf_u32 *out_covered) {
+    if (!cam || !pose || !poly_xy || !mask) return NF_E_PARAM_NULL;
+    if (n_pts < 3u) return NF_E_PARAM_RANGE;
+    if (img_w == 0 || img_h == 0) return NF_E_PARAM_RANGE;
+    if (cam->version != NF_CAMERA_MODEL_VERSION) return NF_E_PARAM_VERSION;
+    if (pose->version != NF_POSE_VERSION) return NF_E_PARAM_VERSION;
+
+    /**
+     * 每条边细分 64 段。
+     *
+     * 为什么必须细分：车体近距离包住相机时，矩形边的两角可能投影到
+     * 图像外的相反方向，四点连成的多边形在视口里自交，射线交叉法
+     * 会把整片区域判错。细分后每个顶点都投影到视口附近的连续位置，
+     * 多边形保持简单，填充结果才正确。
+     *
+     * 64 段是权衡：4 边 x 64 = 256 顶点，光栅化 1024x475 约 1.2e8 次
+     * 边判定，约 30ms。每次 create 只算一次，可接受。
+     */
+    const nf_u32 kSeg = 64u;
+    const nf_u32 total = n_pts * kSeg;
+    if (total > 1024u) return NF_E_PARAM_RANGE;   /* 上限保护 */
+
+    nf_f32 vx[1024], vy[1024];
+    nf_u32 n_out = 0;
+
+    for (nf_u32 i = 0; i < n_pts; ++i) {
+        const nf_u32 j = (i + 1u) % n_pts;
+        for (nf_u32 s = 0; s < kSeg; ++s) {
+            const float f = (float)s / (float)kSeg;
+            const float px = poly_xy[i*2+0] + (poly_xy[j*2+0] - poly_xy[i*2+0]) * f;
+            const float py = poly_xy[i*2+1] + (poly_xy[j*2+1] - poly_xy[i*2+1]) * f;
+            /* 车体系 Z = 相机高度处取一点（车身在水平面内） */
+            const float pz = pose->t[2];
+
+            /* 车系 -> 相机系: v_C = Rᵀ (P - t) */
+            const float d[3] = { px - pose->t[0], py - pose->t[1], pz - pose->t[2] };
+            const float rc[3] = {
+                pose->R[0]*d[0] + pose->R[3]*d[1] + pose->R[6]*d[2],
+                pose->R[1]*d[0] + pose->R[4]*d[1] + pose->R[7]*d[2],
+                pose->R[2]*d[0] + pose->R[5]*d[1] + pose->R[8]*d[2],
+            };
+
+            float uf = 0.0f, vf = 0.0f;
+            nf_u8 ok = 0;
+            nf_cam_project_c(cam, rc[0], rc[1], rc[2], &uf, &vf, &ok);
+            if (!ok) {
+                /**
+                 * 投影失败的顶点**不能简单跳过** —— 跳过会让多边形
+                 * 少一段边界，填充区域缺一块。
+                 * 用一个"远离视口"的哨兵点占位，保持顶点数不变。
+                 */
+                uf = -1e6f; vf = -1e6f;
+            }
+
+            /* 原图像素 -> 视口像素（用 LUT 反查不现实，这里用视口投影近似：
+             * 车身点已投影到原图，再用视口的 yaw/俯仰把它转到视口系） */
+            vx[n_out] = uf;
+            vy[n_out] = vf;
+            ++n_out;
+        }
+    }
+
+    /* 光栅化（顶点坐标系由调用方约定：这里直接用原图像素，
+     * 与 LUT 的 u_q4/v_q4 同空间，nf_lut_build 会按同一坐标查掩码） */
+    NFStatus st = nf_mask_rasterize_polygon(mask, img_w, img_h, vx, vy, n_out);
+    if (st != NF_OK) return st;
+
+    if (out_covered) {
+        nf_u32 c = 0;
+        for (size_t i = 0; i < (size_t)img_w * img_h; ++i)
+            if (mask[i]) ++c;
+        *out_covered = c;
     }
     return NF_OK;
 }

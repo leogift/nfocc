@@ -210,9 +210,9 @@ NFStatus nf_pipeline_create(NFPipeline **pp, const NFPipelineConfig *cfg,
         /* **D1 车身掩码接线**：此前这里传 nullptr，导致车体反光、车标、
          * 保险杠在点云里形成一层贴着车身的假障碍（实测 BEV 上车体轮廓
          * 一圈恒亮）。掩码在 LUT 构建期就把这些像素判为无效 —— 源头掐灭，
-         * 下游零代价。cfg.body_mask 为 NULL 时行为不变。 */
+         * 下游零代价。cfg.body_mask[c] 为 NULL 时行为不变。 */
         st = nf_lut_build(&p->lut[c], &p->cams[c], &p->poses[c],
-                          &vp_c, p->cfg.body_mask, &stats);
+                          &vp_c, p->cfg.body_mask[c], &stats);
         if (st == NF_E_LUT_EMPTY) {
             /* 该虚拟视口完全落在本相机视场外 —— 正常工况。
              * 例: RV 相机 yaw=0（朝车头）时，车尾鱼眼根本拍不到。

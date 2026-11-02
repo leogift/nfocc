@@ -12,6 +12,7 @@
  *   nfocc_run --synthetic --frames 10 --stats        (无录包时的自测)
  */
 #include "nfocc/nfocc_pipeline.h"
+#include "nfocc/nfocc_lut.h"
 #include "nfocc/nfocc_engine.h"
 #include "nfocc/nfocc_default.h"
 #include "nfocc/nfocc_io.h"
@@ -141,6 +142,11 @@ int main(int argc, char **argv) {
     bool forward = false;
     bool viewplan = false;
     float hfov_deg = NF_V_VIEW_HFOV_DEG;
+    bool no_body_mask = false;       /* --no-body-mask: 关闭 D1 */
+    bool d4_on = false;              /* --d4: 启用双基线 + D4 */
+    float speed_kmh = 5.0f;          /* --speed: 车速, 驱动 yaw_rate 积分 */
+    float yaw_rate_dps = 0.0f;       /* --yaw-rate: 偏航率 deg/s */
+    std::vector<nf_u8> mask_buf;     /* D1 掩码存储，4 路连续 */
 
     for (int i = 1; i < argc; ++i) {
         if (!std::strcmp(argv[i], "--frames") && i + 1 < argc) n_frames = std::atoi(argv[++i]);
@@ -156,6 +162,10 @@ int main(int argc, char **argv) {
         else if (!std::strcmp(argv[i], "--move") && i + 1 < argc) move_mm = (float)atof(argv[++i]);
         else if (!std::strcmp(argv[i], "--forward")) forward = true;
         else if (!std::strcmp(argv[i], "--viewplan")) viewplan = true;
+        else if (!std::strcmp(argv[i], "--no-body-mask")) no_body_mask = true;
+        else if (!std::strcmp(argv[i], "--d4")) d4_on = true;
+        else if (!std::strcmp(argv[i], "--speed") && i + 1 < argc) speed_kmh = (float)atof(argv[++i]);
+        else if (!std::strcmp(argv[i], "--yaw-rate") && i + 1 < argc) yaw_rate_dps = (float)atof(argv[++i]);
         else if (!std::strcmp(argv[i], "--hfov") && i + 1 < argc)
             hfov_deg = (float)atof(argv[++i]);
         else { std::printf("未知参数: %s\n", argv[i]); return 2; }
@@ -312,6 +322,50 @@ int main(int argc, char **argv) {
             std::printf("真实图像 %ux%u -> 视口 %ux%u (f=%.2f)\n",
                         wscal.image_w, wscal.image_h,
                         vp2.width, vp2.height, (double)vp2.f);
+        }
+
+        /**
+         * **D1 车身掩码**：车体轮廓（矩形占位 5000x2000）投影到每路原图，
+         * 生成逐像素掩码，LUT 构建期据此剔除车身像素。
+         *
+         * 用矩形占位而不是真实车体轮廓：真实轮廓要整车尺寸图，
+         * 当前没有。矩形会**过度屏蔽**（后视镜、轮眉凸起处本不是车身
+         * 却在内），所以开启后点数会偏少 —— 这是已知代价，
+         * 换成真实多边形后消失。
+         */
+        if (!no_body_mask) {
+            const float half_l = NF_VEH_LEN * 0.5f;
+            const float front  = NF_VEH_REAR_TO_FRONT;
+            const float rear   = front - NF_VEH_LEN;
+            const float half_w = NF_VEH_WID * 0.5f;
+            /* 车体系俯视矩形，顺时针 */
+            const nf_f32 poly[8] = {
+                front,  -half_w,   /* 右前 */
+                front,   half_w,   /* 左前 */
+                rear,    half_w,   /* 左后 */
+                rear,   -half_w,   /* 右后 */
+            };
+            const size_t msz = (size_t)wscal.image_w * wscal.image_h;
+            mask_buf.assign(msz * 4u, 0);
+            nf_u32 tot_cov = 0;
+            for (int c = 0; c < 4; ++c) {
+                nf_u32 cov = 0;
+                nf_mask_build_vehicle(&cams[c], &poses[c],
+                                      wscal.image_w, wscal.image_h,
+                                      poly, 4u, mask_buf.data() + (size_t)c * msz,
+                                      &cov);
+                tot_cov += cov;
+                std::printf("  D1 cam%d 车身掩码覆盖 %u 像素 (%.1f%%)\n",
+                            c, cov, 100.0 * (double)cov / (double)msz);
+            }
+            (void)half_l;
+            for (int c = 0; c < 4; ++c)
+                cfg.body_mask[c] = tot_cov
+                    ? mask_buf.data() + (size_t)c * msz : nullptr;
+            std::printf("D1 车身掩码已生成 (矩形 %.0fx%.0f mm, 合计 %u 像素)\n",
+                        (double)NF_VEH_LEN, (double)NF_VEH_WID, tot_cov);
+        } else {
+            std::printf("D1 车身掩码已关闭 (--no-body-mask)\n");
         }
         /* B_MAX 必须随 f 重算: B_MAX = numDisp*Z_MIN/f */
         const float bmax_new = (float)NF_E_MAX_DISP * NF_B_ZMIN_EFF / cfg.view.f;

@@ -71,7 +71,16 @@ typedef struct {
      *
      * 由 `nf_mask_rasterize_polygon` 从车体轮廓多边形生成。
      */
-    const nf_u8 *body_mask;
+    /**
+     * **每路相机各自的**车身掩码 [4][img_h*img_w]，NULL = 该路不启用。
+     *
+     * 为什么必须分开：4 路相机的车身投影位置完全不同（FV 看到车头，
+     * RV 看到车尾，ML/MR 看到车侧）。共用一个指针会让三路相机
+     * 用错掩码 —— 表现是"车身掩码没效果"或把大片正常区域剔掉。
+     *
+     * 掩码尺寸是**原图尺寸**，由 `nf_mask_build_vehicle` 生成。
+     */
+    const nf_u8 *body_mask[NF_NUM_CAMERAS];
 } NFPipelineConfig;
 
 /** 单帧输入 */

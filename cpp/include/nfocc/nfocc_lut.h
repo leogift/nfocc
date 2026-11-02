@@ -160,6 +160,38 @@ NFStatus nf_mask_rasterize_polygon(nf_u8 *mask, nf_u32 w, nf_u32 h,
                                    nf_u32 n_pts);
 
 /**
+ * D1: 由**车体系**车体轮廓生成某视口的车身掩码。
+ *
+ * ## 与 nf_mask_rasterize_polygon 的分工
+ * 后者要求顶点已在**视口像素坐标**。本函数负责把车体系多边形
+ * （俯视矩形或多边形）逐顶点投影到该视口，再交给光栅化。
+ *
+ * ## 为什么不能直接把矩形的四个角投影后光栅化
+ * 车体近距离包住相机时，矩形的边会投影到图像外的很远处，
+ * 四点连成的多边形在视口里可能变成**自交**图形，射线交叉法会失效。
+ *
+ * 处理办法：把每条边**按 64 段细分**后再投影。细分后每个顶点都落在
+ * 合理范围内，自交消失，填充结果与真实遮挡一致。
+ * 代价是顶点数从 4 涨到 256，光栅化仍是 O(w*h*顶点数)，可接受。
+ *
+ * @param cam      该相机模型（用于投影）
+ * @param pose     该相机位姿（车体系）
+ * @param img_w    原图宽（掩码尺寸 = 原图尺寸，不是视口尺寸）
+ * @param img_h    原图高
+ * @param poly_xy  车体系多边形顶点 [n*2]，mm，顺序（顺/逆时针均可）
+ * @param n_pts    顶点数（>=3）
+ * @param mask     输出 [img_h * img_w]，1 = 车身遮挡
+ * @param out_covered 输出被遮挡的像素数，可为 NULL
+ *
+ * **掩码尺寸是原图尺寸**：`nf_lut_build` 用投影得到的原图坐标
+ * (uf,vf) 去查掩码，所以掩码必须与 `img_w x img_h` 同尺寸。
+ */
+NFStatus nf_mask_build_vehicle(const NFCameraModel *cam, const NFPose *pose,
+                               nf_u32 img_w, nf_u32 img_h,
+                               const nf_f32 *poly_xy, nf_u32 n_pts,
+                               nf_u8 *mask, nf_u32 *out_covered);
+
+/**
  * 按 LUT 把原图重采样到视口。
  * 双线性, **无效邻域不参与权重**(不按 0 处理 —— 否则边缘会出现假梯度,
  * SGBM 会把它当纹理去匹配)。

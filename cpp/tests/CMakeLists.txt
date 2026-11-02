@@ -118,6 +118,20 @@ target_link_libraries(test_vcam_bridge PRIVATE nfocc_core)
 add_test(NAME unit_vcam_bridge COMMAND test_vcam_bridge)
 set_tests_properties(unit_vcam_bridge PROPERTIES LABELS unit)
 
+# 八叉树 + DBSCAN + 动静分离（含 150k 点性能实测）
+add_executable(test_cluster unit/test_cluster.cpp)
+target_include_directories(test_cluster PRIVATE ${NF_TEST_INC})
+target_link_libraries(test_cluster PRIVATE nfocc_core)
+add_test(NAME unit_cluster COMMAND test_cluster)
+set_tests_properties(unit_cluster PROPERTIES LABELS unit)
+
+# D4 双基线 + yaw_rate 积分降级（含负对照）
+add_executable(test_d4_baseline unit/test_d4_baseline.cpp)
+target_include_directories(test_d4_baseline PRIVATE ${NF_TEST_INC})
+target_link_libraries(test_d4_baseline PRIVATE nfocc_core)
+add_test(NAME unit_d4_baseline COMMAND test_d4_baseline)
+set_tests_properties(unit_d4_baseline PROPERTIES LABELS unit)
+
 # ---------------------------------------------------------------- 系统测试
 if(TARGET nfocc_run)
   add_test(NAME system_run_synthetic

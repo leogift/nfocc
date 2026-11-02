@@ -19,6 +19,8 @@
  */
 #include "nfocc/nfocc_camera.h"
 #include "nfocc/nfocc_lut.h"
+#include "nfocc/nfocc_cluster.h"
+#include "nfocc/nfocc_octree.h"
 #include "nfocc/nfocc_engine.h"
 #include "nfocc/nfocc_voxel.h"
 #include "nfocc/nfocc_geometry.h"
@@ -756,6 +758,167 @@ int main(int argc, char **argv) {
         std::printf("已输出 05_bev.ppm\n");
 
         std::free(go.zmap); std::free(go.zindex);
+    }
+
+    /* ==================== 06: D1 车身掩码 ====================
+     *
+     * 把 5000x2000 矩形投影到每路原图，输出掩码图。
+     * 用途：一眼看出掩码位置对不对 —— 覆盖率数字看不出"掩到了哪"，
+     * 而掩错区域在点数上只是"少了几个点"，很难发现。
+     */
+    {
+        const float front  = NF_VEH_REAR_TO_FRONT;
+        const float rear   = front - NF_VEH_LEN;
+        const float half_w = NF_VEH_WID * 0.5f;
+        const nf_f32 poly[8] = {
+            front, -half_w,  front,  half_w,
+            rear,   half_w,  rear,  -half_w,
+        };
+
+        /*
+         * 拼成 4 联图：每路原图上叠加半透明红色遮罩。
+         * 原图是 1280x966，4 联竖排。
+         */
+        const nf_u32 cw = 1280, ch = 966;
+        const nf_u32 ow = cw, oh = ch * 4;
+        std::vector<unsigned char> out((size_t)ow * oh * 3, 30);
+
+        /* 逐路生成掩码并叠加 */
+        for (int c = 0; c < 4; ++c) {
+            std::vector<nf_u8> mk((size_t)cw * ch, 0);
+            nf_u32 cov = 0;
+            nf_mask_build_vehicle(&cal.cam[c], &cal.pose[c], cw, ch, poly, 4u,
+                                  mk.data(), &cov);
+            std::printf("D1 cam%d 掩码覆盖 %u 像素 (%.1f%%)\n",
+                        c, cov, 100.0 * (double)cov / (double)(cw * ch));
+
+            for (nf_u32 y = 0; y < ch; ++y) {
+                for (nf_u32 x = 0; x < cw; ++x) {
+                    const size_t si = (size_t)y * cw + x;
+                    const size_t di = ((size_t)(c * ch + y) * ow + x) * 3;
+                    /* 底图用 Y 通道（有的话），否则纯黑 */
+                    /* cur[c].data 是已载入的 Y 通道，尺寸 W x H */
+                    const unsigned char g = (c < ncam &&
+                        (size_t)cw * ch <= cur[c].data.size())
+                        ? cur[c].data[si] : (unsigned char)40;
+                    if (mk[si]) {
+                        /* 掩码区域：红色 60% 叠加 */
+                        out[di+0] = (unsigned char)(g * 0.4f + 255 * 0.6f);
+                        out[di+1] = (unsigned char)(g * 0.4f);
+                        out[di+2] = (unsigned char)(g * 0.4f);
+                    } else {
+                        out[di+0] = out[di+1] = out[di+2] = g;
+                    }
+                }
+            }
+        }
+        char pm[512];
+        std::snprintf(pm, sizeof(pm), "%s/06_body_mask.ppm", outdir);
+        write_ppm_rgb(pm, out.data(), ow, oh);
+        std::printf("已输出 06_body_mask.ppm (4 联, 红色=车身遮挡)\n");
+    }
+
+    /* ==================== 07: 聚类 + 动静分离 ====================
+     *
+     * 对已导出的点云做 DBSCAN，把结果画成 BEV：
+     *   静止簇 = 绿色，动态簇 = 红色，噪声 = 灰点
+     *
+     * 注意：当前帧没有前一帧位姿（数据集无定位数据），点级速度
+     * 用的是恒等变换 —— 所以这里所有簇都会被判"静止"。
+     * 这张图的价值是**验证聚类本身**（能不能把点团分开），
+     * 动静分离要靠 test_cluster 的合成场景对照验证。
+     */
+    {
+        NFPointCloud pc;
+        if (nf_pointcloud_alloc(&pc, 200000) == NF_OK &&
+            nf_voxel_export_points(vox, &pc) == NF_OK && pc.num_points > 0) {
+
+            std::vector<nf_f32> pts((size_t)pc.num_points * 3);
+            for (nf_u32 i = 0; i < pc.num_points; ++i) {
+                pts[i*3+0] = (nf_f32)pc.points[i].x_mm;
+                pts[i*3+1] = (nf_f32)pc.points[i].y_mm;
+                pts[i*3+2] = (nf_f32)pc.points[i].z_mm;
+            }
+
+            NFOctreeCtx *tree = nullptr;
+            if (nf_octree_build(&tree, pts.data(), pc.num_points, nullptr) == NF_OK) {
+                NFClusterResult cr;
+                if (nf_cluster_result_alloc(&cr, NF_MAX_CLUSTERS,
+                                            pc.num_points) == NF_OK &&
+                    nf_dbscan(tree, nullptr, &cr) == NF_OK) {
+
+                    nf_u32 cells = 0, maxc = 0;
+                    nf_f32 avgc = 0, cellm = 0;
+                    nf_octree_stats(tree, &cells, &maxc, &avgc, &cellm);
+                    std::printf("聚类: %u 点 -> %u 簇, 噪声 %u "
+                                "(格 %.0fmm x %u, 最大 %u 点/格)\n",
+                                pc.num_points, cr.num_clusters, cr.num_noise,
+                                (double)cellm, cells, maxc);
+
+                    /* 画 BEV：俯视 XY，每个簇一个颜色 */
+                    const nf_u32 w2 = 900, h2 = 900;
+                    const float ext = 12000.0f;   /* ±12 m */
+                    std::vector<unsigned char> im((size_t)w2 * h2 * 3, 18);
+                    auto to_px = [&](float x, float y, nf_u32 *px, nf_u32 *py) {
+                        const float u = (x + ext) / (2*ext) * (float)w2;
+                        const float v = (ext - y) / (2*ext) * (float)h2;
+                        *px = (u < 0) ? 0 : ((u >= (float)w2) ? w2-1 : (nf_u32)u);
+                        *py = (v < 0) ? 0 : ((v >= (float)h2) ? h2-1 : (nf_u32)v);
+                    };
+                    /* 每簇配色（确定性，便于多次跑对比） */
+                    auto cl_color = [](nf_u32 id, unsigned char rgb[3]) {
+                        rgb[0] = (unsigned char)(80 + (id * 67) % 175);
+                        rgb[1] = (unsigned char)(80 + (id * 131) % 175);
+                        rgb[2] = (unsigned char)(80 + (id * 197) % 175);
+                    };
+                    for (nf_u32 i = 0; i < pc.num_points; ++i) {
+                        const nf_u32 cid = cr.point_cluster[i];
+                        nf_u32 px, py;
+                        to_px(pts[i*3+0], pts[i*3+1], &px, &py);
+                        const size_t di = ((size_t)py * w2 + px) * 3;
+                        if (cid == NF_CLUSTER_NOISE) {
+                            im[di+0] = im[di+1] = im[di+2] = 70;
+                        } else {
+                            unsigned char c3[3];
+                            cl_color(cid, c3);
+                            /* 动态簇用红系，静止用该簇色 */
+                            if (cid < cr.num_clusters &&
+                                cr.clusters[cid].is_dynamic == 2) {
+                                im[di+0] = 230; im[di+1] = 60; im[di+2] = 60;
+                            } else {
+                                im[di+0] = c3[0]; im[di+1] = c3[1]; im[di+2] = c3[2];
+                            }
+                        }
+                    }
+                    /* 自车位置十字 */
+                    {
+                        nf_u32 cx, cy;
+                        to_px(0.0f, 0.0f, &cx, &cy);
+                        for (nf_i32 d = -8; d <= 8; ++d) {
+                            for (int k = 0; k < 3; ++k) {
+                                if (cx+d < (nf_i32)w2) {
+                                    const size_t i1 = ((size_t)cy * w2 + (cx+d))*3;
+                                    im[i1]=240; im[i1+1]=240; im[i1+2]=240;
+                                }
+                                if (cy+d >= 0 && cy+d < (nf_i32)h2) {
+                                    const size_t i2 = ((size_t)(cy+d) * w2 + cx)*3;
+                                    im[i2]=240; im[i2+1]=240; im[i2+2]=240;
+                                }
+                            }
+                        }
+                    }
+                    char pc7[512];
+                    std::snprintf(pc7, sizeof(pc7), "%s/07_clusters.ppm", outdir);
+                    write_ppm_rgb(pc7, im.data(), w2, h2);
+                    std::printf("已输出 07_clusters.ppm "
+                                "(每簇一色, 噪声灰, 自车白十字)\n");
+
+                    nf_cluster_result_destroy(&cr);
+                }
+                nf_octree_destroy(tree);
+            }
+            nf_pointcloud_destroy(&pc);
+        }
     }
 
     nf_voxel_destroy(vox);

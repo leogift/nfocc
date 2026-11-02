@@ -64,6 +64,7 @@ file(GLOB_RECURSE NF_CORE_SRC
   ${CMAKE_CURRENT_SOURCE_DIR}/src/geometry/*.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/baseline/*.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/voxel/*.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/cluster/*.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/util/*.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/geometry/match_radial.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/geometry/scene.cpp
