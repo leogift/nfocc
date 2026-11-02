@@ -56,8 +56,8 @@ typedef struct {
     nf_u8  cam_id;        /* 0=FV 1=RV 2=ML 3=MR */
     nf_u8  format;        /* 0=GRAY8 (本项目唯一支持) */
     nf_u16 reserved;
-    nf_u32 width;         /* 必为 1920 */
-    nf_u32 height;        /* 必为 1536 */
+    nf_u32 width;         /* 必须在白名单内（见 §2.1.1） */
+    nf_u32 height;        /* 1920x1536 或 1280x966 */
     nf_u32 stride;        /* 字节/行, 可 >= width */
     nf_u64 timestamp_us;  /* **曝光中点**的单调时钟, 微秒 */
     nf_u32 frame_id;      /* 单调递增, 丢帧时跳号(下游据此发现丢帧) */
@@ -69,13 +69,38 @@ typedef struct {
 **约束**：
 | 项 | 要求 | 违反后果 |
 |---|---|---|
-| `width/height` | 严格 1920×1536 | `NF_E_PARAM_RANGE` |
+| `width/height` | 必须在白名单内（默认 1920×1536、1280×966） | `NF_E_PARAM_RANGE` |
 | `timestamp_us` | 单调时钟(uptime), **不是墙钟** | 墙钟会被 NTP 跳变, 导致基线算出负数 |
 | `frame_id` | 单调递增，允许跳号 | 跳号 = 丢帧，连续跳 >2 帧冻结 |
 | `data_bytes` | 必须等于 `stride*height` | 防止上游截断 |
 
 **为什么时间戳要单调时钟**：系统墙钟会被 NTP 校正，一次跳变可能是几十毫秒，
 比帧周期还大。用墙钟算基线会得到负值或突变，`t_cam` 直接错。
+
+### 2.1.1 尺寸白名单（可配置）
+
+**2026-11-02 变更**：原先硬校验 `width==1920 && height==1536`，但实际接入的
+hanqtech 数据是 **1280×966** —— ZMQ 通路接上真实数据后每一帧都被判格式错误
+直接丢弃。测试没发现是因为测试数据是按 ICD 尺寸造的，**通过了也不能说明
+接真数据能用**。
+
+现在改为白名单：
+
+| API | 行为 |
+|---|---|
+| `nf_up_parse()` | 用默认白名单：`1920×1536`、`1280×966` |
+| `nf_up_parse_sized(..., allowed, n_allowed)` | 调用方显式指定 |
+
+**为什么是白名单而不是完全放开**：图像尺寸决定下游所有栅格与内存预算
+（`nf_pipeline_mem_bytes` 按尺寸算），接受任意尺寸会让预算失效，板端
+可能直接 OOM。新增数据源时在 `NF_UP_DEFAULT_SIZES` 里加一行即可。
+
+```c
+/* 两种尺寸都必须被接受 —— test_zmq_io 的 up_parse_accepts_both_sizes 守着 */
+1920x1536 -> 接受
+1280x966  -> 接受
+640x480   -> 拒绝（不在白名单）
+```
 
 ### 2.2 位姿 / ego motion
 

@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
-"""生成 NFOCC 架构/流程图的 SVG，并构建图文并茂的 PDF 报告。
+"""生成 NFOCC 报告的 SVG 图与 PDF：进展看板 / 工程架构 / 数据流 / 算法逻辑。
 
 ## 为什么自己画 SVG
-架构图、数据流图、决策流程图都是**结构化的**，用 Python 直接生成 SVG
-比手画或截图更可维护：改一处文字不用重画。
+架构图与流程图是**结构化的**，用 Python 生成 SVG 比手画或截图可维护：
+改一处文字不用重画，且能内联进 HTML 保持矢量文字（可搜索、可选中）。
 
-## 为什么要 base64 内嵌
-Chromium 解析 `<img src="相对路径">` 是**按页面 URL**解析的，
-移动文件或换 cwd 就会静默丢图（markdown-to-pdf skill 的 pitfall #8）。
-base64 data URI 免疫这个问题，且 HTML 自身可交付。
+## 为什么内联 <svg> 而不是 <img src="data:...">
+Chromium 会把 `<img>` 引用的 SVG **栅格化成位图**，图内文字不进文本层
+（实测搜不到 "接入层"），PDF 体积还会膨胀到 9 MB。内联 `<svg>` 保持矢量，
+文字可选中、体积降一个数量级。
+
+注入必须发生在 pandoc **之后** —— markdown 里直接写 `<svg>` 会被
+raw_html 白名单剥掉。
 
 用法:
-    python tools/build_arch_report.py
+    python3 tools/build_arch_report.py
 """
 import base64
 import re
@@ -25,218 +28,374 @@ EDGE = "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
 
 FONT = '"PingFang SC","Hiragino Sans GB",sans-serif'
 
-# 配色（与 BEV 视口色一致，便于对照）
 C_BG = "#ffffff"
 C_BOX = "#f4f7fb"
-C_BORDER = "#3b5b8c"
-C_TEXT = "#1a2333"
-C_ACCENT = "#c0392b"
+C_DONE = "#e8f5e9"      # 已完成
+C_PART = "#fff8e1"      # 部分
+C_TODO = "#fdecea"      # 未做
+C_BORDER = "#5a6b7d"
 C_OK = "#2e7d32"
-C_WARN = "#e67e22"
-C_INFRA = "#6c5ce7"
+C_WARN = "#e65100"
+C_ERR = "#c62828"
 
+
+# ---------------------------------------------------------------- 绘图原语
 
 def svg_open(w, h):
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" '
-            f'viewBox="0 0 {w} {h}">'
-            f'<rect width="{w}" height="{h}" fill="{C_BG}"/>')
-def box(x, y, w, h, label, sub="", color=C_BORDER, fill=C_BOX, fs=15):
-    s = (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="6" '
-         f'fill="{fill}" stroke="{color}" stroke-width="1.6"/>')
-    cy = y + h / 2 + (fs * 0.35)
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" '
+            f'width="{w}" height="{h}">'
+            f'<rect width="{w}" height="{h}" fill="{C_BG}"/>'
+            f'<style>text{{font-family:{FONT};}}</style>')
+
+
+def svg_close():
+    return "</svg>"
+
+
+def txt(x, y, s, size=13, color="#233", anchor="start", bold=False):
+    w = ' font-weight="600"' if bold else ""
+    return (f'<text x="{x}" y="{y}" font-size="{size}" fill="{color}" '
+            f'text-anchor="{anchor}"{w}>{s}</text>')
+
+
+def box(x, y, w, h, label, sub="", fill=C_BOX, border=C_BORDER, fs=13):
+    s = (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="5" '
+         f'fill="{fill}" stroke="{border}" stroke-width="1.5"/>')
+    s += txt(x + w / 2, y + h / 2 + (0 if not sub else -7), label,
+             fs, "#1a2b3c", "middle", True)
     if sub:
-        cy = y + h / 2 - 4
-        s += (f'<text x="{x + w/2}" y="{cy}" text-anchor="middle" '
-              f'font-family={FONT!r} font-size="{fs}" fill="{C_TEXT}" '
-              f'font-weight="600">{label}</text>')
-        s += (f'<text x="{x + w/2}" y="{cy + 16}" text-anchor="middle" '
-              f'font-family={FONT!r} font-size="{fs - 3}" fill="#5a6a80">{sub}</text>')
-    else:
-        s += (f'<text x="{x + w/2}" y="{cy}" text-anchor="middle" '
-              f'font-family={FONT!r} font-size="{fs}" fill="{C_TEXT}">{label}</text>')
+        s += txt(x + w / 2, y + h / 2 + 11, sub, fs - 2, "#556", "middle")
     return s
 
 
 def arrow(x1, y1, x2, y2, label="", color="#456", dash=""):
     d = f' stroke-dasharray="{dash}"' if dash else ""
     s = (f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{color}" '
-         f'stroke-width="1.8" marker-end="url(#ah)"{d}/>')
+         f'stroke-width="1.8" marker-end="url(#ar)"{d}/>')
     if label:
-        s += (f'<text x="{(x1+x2)/2}" y="{(y1+y2)/2 - 6}" text-anchor="middle" '
-              f'font-family={FONT!r} font-size="11" fill="{color}">{label}</text>')
+        mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+        s += txt(mx, my - 5, label, 11, color, "middle")
     return s
 
 
-MARKER = ('<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" '
-          'markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
-          '<path d="M 0 0 L 10 5 L 0 10 z" fill="#456"/></marker>'
-          '<marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" '
-          'markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
-          f'<path d="M 0 0 L 10 5 L 0 10 z" fill="{C_ACCENT}"/></marker></defs>')
+DEFS = ('<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" '
+        'markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
+        '<path d="M 0 0 L 10 5 L 0 10 z" fill="#456"/></marker></defs>')
 
 
-# ---------------------------------------------------------------- 架构分层图
+# ---------------------------------------------------------------- 图 1 看板
+
+def fig_dashboard():
+    """开发进展看板：按模块列状态，颜色区分完成度。"""
+    W, H = 1180, 760
+    rows = [
+        ("相机模型", "KB + 径向多项式，vcam 桥接 0.117/0.190 px 对齐", "done"),
+        ("视口 LUT", "6 视口，左右 150°×1024 / 前后 90°×590，四道淘汰计数", "done"),
+        ("SGBM 视差", "已接主链，35.6 ms/帧（单相机串行）", "done"),
+        ("前向径向测距", "解析解，误差 0.000 mm（合成验证）", "done"),
+        ("三角化 / 体素", "Hash + CMA，RSS 162 MB（预算 291 MB）", "done"),
+        ("车身掩码 D1", "5000×2000 矩形占位，负对照 661→195 点", "done"),
+        ("FoE 锥过滤 D3", "已接主链，pipeline 两处调用", "done"),
+        ("σ 传播 / 落库", "已接主链，σ<10cm 占 66%", "done"),
+        ("ZMQ 零拷贝", "接收零拷贝 + 发送所有权转移，8 用例", "done"),
+        ("网格哈希 + DBSCAN", "150k 点 45 ms（纯网格哈希）", "done"),
+        ("动静分离", "位姿补偿 + 点级速度 + 簇级投票，负对照守住", "done"),
+        ("双基线状态机", "6 用例通过，但 pipeline 仍用旧门控", "part"),
+        ("里程计积分", "speed+yaw_rate 中点航向法，圆弧误差 0.05%", "done"),
+        ("D2 双向一致性", "函数在，主链 0 处调用（耗时 1.8 倍）", "part"),
+        ("D4 交叉验证", "函数在，需双基线晋升 / 真实定位", "part"),
+        ("在线自校准", "方案已定（地平面单应 + IMU），未实现", "todo"),
+        ("精度达标 150mm@5m", "需 σ_d≤0.34px，实测 14-42px，未证实", "todo"),
+        ("aarch64 上板", "产物已出，未在 RK3588/M57 运行", "todo"),
+        ("Neon/SIMD 优化", "全库无 SIMD 代码", "todo"),
+        ("RKNN 模型后端", "onnxruntime 通，NPU 未接", "todo"),
+    ]
+    s = svg_open(W, H) + DEFS
+    s += txt(30, 38, "NFOCC 开发进展看板", 22, "#1a2b3c", bold=True)
+    s += txt(30, 60, "2026-11-02  ·  代码 7900 行  ·  ctest 17/18  ·  文档 40 篇全绿",
+             13, "#667")
+
+    color = {"done": (C_DONE, C_OK, "已完成"),
+             "part": (C_PART, C_WARN, "部分"),
+             "todo": (C_TODO, C_ERR, "未做")}
+
+    # 图例
+    lx = 780
+    for k, (_, bc, label) in color.items():
+        s += (f'<rect x="{lx}" y="24" width="14" height="14" rx="3" '
+              f'fill="{color[k][0]}" stroke="{bc}" stroke-width="1.5"/>')
+        s += txt(lx + 20, 36, label, 12, "#445")
+        lx += 95
+
+    # 四列布局
+    cols = 2
+    per = (len(rows) + cols - 1) // cols
+    bw, bh = 545, 58
+    for i, (name, desc, st) in enumerate(rows):
+        cx = 30 + (i // per) * (bw + 40)
+        cy = 90 + (i % per) * (bh + 8)
+        fill, bc, _ = color[st]
+        s += (f'<rect x="{cx}" y="{cy}" width="{bw}" height="{bh}" rx="6" '
+              f'fill="{fill}" stroke="{bc}" stroke-width="1.5"/>')
+        s += txt(cx + 14, cy + 22, name, 14, "#1a2b3c", bold=True)
+        s += txt(cx + 14, cy + 42, desc, 11.5, "#556")
+
+    s += txt(30, H - 16,
+             "「部分」= 代码已实现并通过单测，但主链未接入或依赖缺失的外部数据。"
+             "这类最容易被误报为完成。", 11.5, "#777")
+    return s + svg_close()
+
+
+# ---------------------------------------------------------------- 图 2 架构
+
 def fig_arch():
-    W, H = 980, 620
-    s = svg_open(W, H) + MARKER
+    W, H = 1180, 620
+    s = svg_open(W, H) + DEFS
+    s += txt(30, 34, "NFOCC 工程架构", 20, "#1a2b3c", bold=True)
 
-    s += (f'<text x="{W/2}" y="30" text-anchor="middle" font-family={FONT!r} '
-          f'font-size="19" font-weight="700" fill="{C_TEXT}">'
-          f'NFOCC 分层架构</text>')
-
+    # 四层
     layers = [
-        (60, "接入层", "#e8f0fe", C_BORDER, [
-            ("hanqtech 加载器", "标定/PNG/ego"),
-            ("文件回放", ".nfp"),
-            ("ZMQ 上游", "图像+ego"),
-            ("真值场景源", "解析渲染"),
+        ("应用层", 70, 95, [
+            ("nfocc_run", "命令行运行"),
+            ("nfocc_viz", "中间结果可视化"),
+            ("nfocc_disp_probe", "视差探针"),
+            ("nfocc_disturb_gen", "外参扰动生成"),
         ]),
-        (215, "几何与视口层", "#e6f4ea", C_OK, [
-            ("虚拟相机视口", "pitch=0 roll=0"),
-            ("视口 LUT", "反投影采样表"),
-            ("D1 车身掩码", "多边形光栅化"),
-            ("四次多项式内参", "ρ(θ)=Σk_iθ^i"),
+        ("主链层", 190, 95, [
+            ("pipeline", "6 视口调度 + 门控"),
+            ("input_source", "文件 / hanqtech / ZMQ"),
+            ("frame_pool", "帧缓冲池"),
         ]),
-        (370, "算法层", "#fff3e0", C_WARN, [
-            ("SGBM 视差", "8bit 支持"),
-            ("径向膨胀匹配", "前向对应点"),
-            ("双基线状态机", "短/长基线交替"),
-            ("D2/D3/D4 防御", "软权重/锥/交叉"),
+        ("算法层", 310, 95, [
+            ("lut", "视口 LUT"),
+            ("geometry", "三角化/门控/FoE/径向"),
+            ("engine", "SGBM / 模型双引擎"),
+            ("voxel", "Hash + CMA 融合"),
         ]),
-        (525, "输出与基础设施", "#f3e8fd", C_INFRA, [
-            ("体素哈希 + 柱体排布", "zMap/zIndex O(1)"),
-            ("σ 方差传播", "σ_Z 全微分"),
-            ("点云 / 下游协议", "CRC16+计数"),
-            ("TaskExecutor", "线程池+环形队列"),
+        ("基础设施", 430, 95, [
+            ("camera", "KB / 径向多项式"),
+            ("cluster", "网格哈希 + DBSCAN"),
+            ("baseline", "双基线 + 里程计"),
+            ("io", "文件 / ZMQ 零拷贝"),
         ]),
     ]
 
-    for y0, name, fill, color, items in layers:
-        s += (f'<rect x="40" y="{y0}" width="{W-80}" height="130" rx="10" '
-              f'fill="{fill}" stroke="{color}" stroke-width="1.2" '
-              f'stroke-opacity="0.55"/>')
-        s += (f'<text x="58" y="{y0+26}" font-family={FONT!r} font-size="14" '
-              f'font-weight="700" fill="{color}">{name}</text>')
-        bw, gap = 205, 18
-        for i, (lbl, sub) in enumerate(items):
-            bx = 58 + i * (bw + gap)
-            s += box(bx, y0 + 40, bw, 70, lbl, sub, color=color, fill="#ffffff",
-                     fs=13)
+    for label, y, _, items in layers:
+        s += (f'<rect x="24" y="{y - 22}" width="1132" height="76" rx="8" '
+              f'fill="#fafbfd" stroke="#dde3ea" stroke-width="1"/>')
+        s += txt(40, y + 20, label, 14, "#5a6b7d", bold=True)
+        n = len(items)
+        iw = min(250, (1080 - (n - 1) * 16) / n)
+        sx = 150
+        for i, (nm, sub) in enumerate(items):
+            s += box(sx + i * (iw + 16), y - 10, iw, 52, nm, sub)
 
     # 层间箭头
-    for y0 in (190, 345, 500):
-        s += arrow(W / 2, y0, W / 2, y0 + 22, color="#456")
-    s += (f'<text x="{W-52}" y="206" text-anchor="end" font-family={FONT!r} '
-          f'font-size="11" fill="#6b7a8f">车辆系 ISO 8855 贯穿</text>')
-    s += "</svg>"
-    return s
+    for y in (148, 268, 388):
+        s += arrow(590, y, 590, y + 20, "", "#8aa")
+
+    # 右侧：数据流向
+    s += (f'<rect x="24" y="520" width="1132" height="80" rx="8" '
+          f'fill="#f0f7ff" stroke="#9cc" stroke-width="1.2"/>')
+    s += txt(40, 546, "数据流", 14, "#2a5d8f", bold=True)
+    flow = ["4 路鱼眼 1280×966", "视口 LUT", "SGBM 视差", "三角化", "体素融合", "点云 + zMap"]
+    fw = 160
+    for i, f in enumerate(flow):
+        fx = 60 + i * (fw + 22)
+        s += (f'<rect x="{fx}" y="558" width="{fw}" height="30" rx="15" '
+              f'fill="#ffffff" stroke="#2a5d8f" stroke-width="1.5"/>')
+        s += txt(fx + fw / 2, 578, f, 12, "#1a3d5f", "middle", True)
+        if i < len(flow) - 1:
+            s += arrow(fx + fw + 2, 573, fx + fw + 20, 573, "", "#2a5d8f")
+
+    return s + svg_close()
 
 
-# ---------------------------------------------------------------- 数据流图
+# ---------------------------------------------------------------- 图 3 Pipeline
+
 def fig_pipeline():
-    W, H = 1180, 470
-    s = svg_open(W, H) + MARKER
-    s += (f'<text x="{W/2}" y="28" text-anchor="middle" font-family={FONT!r} '
-          f'font-size="19" font-weight="700" fill="{C_TEXT}">'
-          f'单帧数据流（每路相机独立、四路并行）</text>')
+    W, H = 1180, 700
+    s = svg_open(W, H) + DEFS
+    s += txt(30, 34, "数据流 Pipeline（单帧 200 ms 预算）", 20, "#1a2b3c", bold=True)
 
-    stages = [
-        ("原图", "1280×966\nY 通道", C_BORDER),
-        ("视口 LUT", "640×297\npitch=0/roll=0", C_BORDER),
-        ("重采样", "双线性\nD1 掩码置无效", C_BORDER),
-        ("SGBM", "视差图\nd_max=46.8", C_WARN),
-        ("三角化", "叉积闭式\ns0<20m", C_WARN),
-        ("D3 FoE", "8° 锥剔除", C_ACCENT),
-        ("σ 传播", "cm 量化\n1..254", C_INFRA),
-        ("体素", "200mm\nCMA 聚合", C_INFRA),
+    # 主循环
+    steps = [
+        ("输入", "4 路 Y 通道\n1280×966", 30, 80),
+        ("视口投影", "LUT 构建\n6 视口", 210, 80),
+        ("视差匹配", "SGBM\n35.6 ms/相机", 390, 80),
+        ("三角化", "射线最小二乘\n或前向解析", 570, 80),
+        ("体素融合", "Hash + CMA\nσ 落库", 750, 80),
+        ("输出", "点云 + zMap\n冻结也发", 930, 80),
     ]
-    n = len(stages)
-    bw, gap = 118, 15
-    x0 = (W - (n * bw + (n - 1) * gap)) / 2
-    y0 = 90
-    for i, (lbl, sub, col) in enumerate(stages):
-        bx = x0 + i * (bw + gap)
-        s += box(bx, y0, bw, 86, lbl, "", color=col, fill="#ffffff", fs=14)
-        for j, line in enumerate(sub.split("\n")):
-            s += (f'<text x="{bx + bw/2}" y="{y0 + 54 + j*14}" '
-                  f'text-anchor="middle" font-family={FONT!r} font-size="11" '
-                  f'fill="#5a6a80">{line}</text>')
-        if i < n - 1:
-            s += arrow(bx + bw, y0 + 43, bx + bw + gap, y0 + 43)
+    for nm, sub, x, y in steps:
+        lines = sub.split("\n")
+        s += box(x, y, 160, 66, nm, "")
+        s += txt(x + 80, y + 42, lines[0], 11, "#556", "middle")
+        if len(lines) > 1:
+            s += txt(x + 80, y + 56, lines[1], 11, "#556", "middle")
+    for i in range(len(steps) - 1):
+        s += arrow(steps[i][2] + 162, 113, steps[i + 1][2] - 2, 113, "", "#456")
 
-    # 汇合 -> 输出
-    s += (f'<path d="M {x0 + n*(bw+gap) - gap} {y0+86} L {x0 + n*(bw+gap) - gap} 250 '
-          f'L {W/2} 250 L {W/2} 285" fill="none" stroke="#456" stroke-width="1.8" '
-          f'marker-end="url(#ah)"/>')
-    s += box(W / 2 - 210, 290, 420, 74, "融合去重", "四路 + 六视口 -> 单一体素表",
-             color=C_OK, fill="#e6f4ea", fs=15)
-    s += arrow(W / 2, 364, W / 2, 398)
-    s += box(W / 2 - 250, 402, 500, 52, "zMap / zIndex / 点云（O(1) 柱体索引）",
-             color=C_INFRA, fill="#f3e8fd", fs=14)
+    # 防御层（并行挂在主链上）
+    s += txt(30, 205, "防御层（主链旁路，按状态开关）", 14, "#5a6b7d", bold=True)
+    guards = [
+        ("D1 车身掩码", "LUT 构建期剔除\n已接入", C_DONE, C_OK),
+        ("D2 双向一致性", "反向匹配\n未接入", C_PART, C_WARN),
+        ("D3 FoE 锥", "逐相机过滤\n已接入", C_DONE, C_OK),
+        ("D4 交叉验证", "双基线互检\n未接入", C_PART, C_WARN),
+        ("σ 传播", "逐点不确定度\n已接入", C_DONE, C_OK),
+    ]
+    for i, (nm, sub, fill, bc) in enumerate(guards):
+        x = 30 + i * 226
+        s += (f'<rect x="{x}" y="225" width="210" height="64" rx="6" '
+              f'fill="{fill}" stroke="{bc}" stroke-width="1.5"/>')
+        s += txt(x + 105, 248, nm, 13, "#1a2b3c", "middle", True)
+        for j, ln in enumerate(sub.split("\n")):
+            s += txt(x + 105, 266 + j * 14, ln, 11, "#556", "middle")
+    s += arrow(590, 148, 590, 220, "旁路", "#8aa", "4 4")
 
-    s += (f'<text x="60" y="{H-16}" font-family={FONT!r} font-size="11" '
-          f'fill="#6b7a8f">单帧预算 200 ms（5 Hz）；实测 34 ms/帧</text>')
-    s += "</svg>"
-    return s
+    # 门控决策
+    s += txt(30, 355, "门控与基线决策", 14, "#5a6b7d", bold=True)
+    gate = [
+        ("FROZEN_NEAR", "基线不足\nb < 278 mm", C_TODO),
+        ("STEREO", "短/长基线\n278 ~ 833 mm", C_DONE),
+        ("FROZEN_ROT", "航向漂移\n> 15°", C_TODO),
+        ("FROZEN_FAR", "基线过大\nb > 833 mm", C_TODO),
+    ]
+    for i, (nm, sub, fill) in enumerate(gate):
+        x = 30 + i * 285
+        s += (f'<rect x="{x}" y="372" width="265" height="58" rx="6" '
+              f'fill="{fill}" stroke="{C_BORDER}" stroke-width="1.2"/>')
+        s += txt(x + 132, 394, nm, 12.5, "#1a2b3c", "middle", True)
+        for j, ln in enumerate(sub.split("\n")):
+            s += txt(x + 132, 412 + j * 13, ln, 10.5, "#556", "middle")
+
+    # 时序预算
+    s += txt(30, 490, "时序预算（实测，单相机串行 35.6 ms/帧）", 14, "#5a6b7d", bold=True)
+    bars = [("视口 LUT", 8), ("SGBM", 18), ("三角化", 4), ("体素", 5), ("输出", 1)]
+    total = sum(b[1] for b in bars)
+    bx = 30
+    for nm, v in bars:
+        bw = v / total * 1000
+        s += (f'<rect x="{bx}" y="505" width="{bw}" height="26" '
+              f'fill="#cfe3f5" stroke="#3a6ea5" stroke-width="1"/>')
+        if bw > 60:
+            s += txt(bx + bw / 2, 523, f"{nm} {v}ms", 10.5, "#1a3d5f", "middle")
+        bx += bw + 3
+    s += txt(30, 552, f"合计约 {total} ms，占 200 ms 预算的 {total/200*100:.0f}%。"
+                       f"6 视口全开需并行，否则线性放大。", 11.5, "#666")
+
+    # 说明
+    s += (f'<rect x="30" y="578" width="1120" height="94" rx="8" '
+          f'fill="#fffbea" stroke="#e0c060" stroke-width="1.2"/>')
+    s += txt(48, 602, "当前阻塞", 13, "#8a6d00", bold=True)
+    notes = [
+        "· depth_accuracy 失败：合成场景只有地面 + 一面墙，纹理规则周期，SGBM 锁错周期（墙面理论 140.8px 实测 2.2px）",
+        "· 聚类受限：帧 164 仅 1256 点 → 82 簇、噪声 926、每簇 4 点。密度不足以聚出物体，根因同上",
+        "· 150mm@5m 未证实：需 σ_d ≤ 0.34px，SGBM 典型值 0.3-0.5px，理论边界",
+    ]
+    for i, n in enumerate(notes):
+        s += txt(48, 624 + i * 16, n, 11.5, "#6b5300")
+
+    return s + svg_close()
 
 
-# ---------------------------------------------------------------- 决策流程图
-def fig_flow():
-    W, H = 900, 690
-    s = svg_open(W, H) + MARKER
-    s += (f'<text x="{W/2}" y="28" text-anchor="middle" font-family={FONT!r} '
-          f'font-size="19" font-weight="700" fill="{C_TEXT}">'
-          f'门控与三角化决策流</text>')
+# ---------------------------------------------------------------- 图 4 算法
 
-    cx = 300
-    s += box(cx - 130, 52, 260, 52, "输入 t_view（视口系）", "", color=C_BORDER,
-             fill="#e8f0fe", fs=14)
-    s += arrow(cx, 104, cx, 132)
+def fig_algo():
+    W, H = 1180, 640
+    s = svg_open(W, H) + DEFS
+    s += txt(30, 34, "算法逻辑：从鱼眼像素到体素", 20, "#1a2b3c", bold=True)
 
-    s += box(cx - 150, 134, 300, 56, "Rz(yaw) 转到车系", "t_veh", color=C_OK,
-             fill="#e6f4ea", fs=14)
-    s += arrow(cx, 190, cx, 218)
+    # 左：视口投影
+    s += txt(30, 72, "① 视口投影（虚拟相机）", 14, "#2a5d8f", bold=True)
+    s += box(30, 88, 300, 120, "", "")
+    lines = [
+        "视口像素 (u,v)",
+        "→ 视口系射线 d_view",
+        "→ 车体系 d_veh = R_view · d_view",
+        "→ 相机系 d_cam = R_camᵀ · d_veh",
+        "→ 鱼眼投影 (u_fish, v_fish)",
+        "→ 查表得原图坐标 + 有效性",
+    ]
+    for i, ln in enumerate(lines):
+        s += txt(48, 114 + i * 18, ln, 11.5, "#334")
 
-    s += box(cx - 165, 220, 330, 56, "Δψ > 15° ?", "急转 / 原地掉头", color=C_ACCENT,
-             fill="#fdecea", fs=14)
-    s += arrow(cx + 165, 248, cx + 255, 248, "是", C_ACCENT)
-    s += box(cx + 265, 222, 150, 52, "FROZEN_ROT", "重置队列", color=C_ACCENT,
-             fill="#fdecea", fs=13)
+    # 中：三角化
+    s += txt(360, 72, "② 三角化（射线最小二乘）", 14, "#2a5d8f", bold=True)
+    s += box(360, 88, 340, 120, "", "")
+    tri = [
+        "当前帧射线 u_hat（相机系）",
+        "参考帧射线 v_hat + 基线 t",
+        "Z = Σ((u×v)·(t×v)) / Σ‖u×v‖²",
+        "粗差判据：残差 > τ 则剔除",
+        "前向平移时改用径向膨胀解析解",
+    ]
+    for i, ln in enumerate(tri):
+        s += txt(378, 114 + i * 20, ln, 11.5, "#334")
 
-    s += arrow(cx, 276, cx, 304)
-    s += box(cx - 165, 306, 330, 56, "b > b_max (460mm) ?", "", color=C_WARN,
-             fill="#fff3e0", fs=14)
-    s += arrow(cx + 165, 334, cx + 255, 334, "是", C_WARN)
-    s += box(cx + 265, 308, 150, 52, "降级/冻结", "重置队列", color=C_WARN,
-             fill="#fff3e0", fs=13)
+    # 右：体素
+    s += txt(730, 72, "③ 体素融合", 14, "#2a5d8f", bold=True)
+    s += box(730, 88, 420, 120, "", "")
+    vox = [
+        "体素索引 (ix,iy,iz) = floor(p / 200mm)",
+        "哈希表开放寻址，空槽探测",
+        "CMA 更新：存在概率 p ← p·(1-w) + w",
+        "σ 传播：深度误差 → 空间不确定度 (cm)",
+        "同体素多次观测取加权质心",
+    ]
+    for i, ln in enumerate(vox):
+        s += txt(748, 114 + i * 20, ln, 11.5, "#334")
 
-    s += arrow(cx, 362, cx, 390)
-    s += box(cx - 165, 392, 330, 56, "b ≥ b_target (300mm) ?", "", color=C_OK,
-             fill="#e6f4ea", fs=14)
-    s += arrow(cx + 165, 420, cx + 255, 420, "是", C_OK)
-    s += box(cx + 265, 394, 150, 52, "用长基线", "短基线晋升", color=C_OK,
-             fill="#e6f4ea", fs=13)
+    # 下：聚类
+    s += txt(30, 258, "④ 聚类与动静分离", 14, "#2a5d8f", bold=True)
+    cl = [
+        ("网格哈希", "格子 (ix,iy,iz)\n→ 点列表 CSR", C_DONE),
+        ("DBSCAN", "eps=120mm\nminPts=3", C_DONE),
+        ("点级速度", "本帧→上帧\n最近邻位移/dt", C_DONE),
+        ("簇级投票", "动态点占比\n> 50% 判动态", C_DONE),
+    ]
+    for i, (nm, sub, fill) in enumerate(cl):
+        x = 30 + i * 290
+        s += (f'<rect x="{x}" y="274" width="270" height="66" rx="6" '
+              f'fill="{fill}" stroke="{C_OK}" stroke-width="1.5"/>')
+        s += txt(x + 135, 298, nm, 13, "#1a2b3c", "middle", True)
+        for j, ln in enumerate(sub.split("\n")):
+            s += txt(x + 135, 316 + j * 14, ln, 11, "#556", "middle")
+        if i < len(cl) - 1:
+            s += arrow(x + 272, 307, x + 288, 307, "", C_OK)
 
-    s += arrow(cx, 448, cx, 476)
-    s += box(cx - 165, 478, 330, 56, "b_short ≥ b_min (200mm) ?", "", color=C_BORDER,
-             fill="#e8f0fe", fs=14)
-    s += arrow(cx + 165, 506, cx + 255, 506, "是", C_BORDER)
-    s += box(cx + 265, 480, 150, 52, "用短基线", "", color=C_BORDER,
-             fill="#e8f0fe", fs=13)
+    # 实测数据
+    s += txt(30, 392, "实测精度（合成场景，5 km/h，b=278mm）", 14, "#5a6b7d", bold=True)
+    data = [("前 -45°", "41.6 px"), ("前 +45°", "28.9 px"), ("后 -135°", "27.6 px"),
+            ("后 +135°", "15.1 px"), ("左 90°", "15.3 px"), ("右 -90°", "14.1 px")]
+    for i, (nm, v) in enumerate(data):
+        x = 30 + i * 190
+        s += (f'<rect x="{x}" y="408" width="175" height="46" rx="5" '
+              f'fill="#fdf3e7" stroke="#e0a060" stroke-width="1.2"/>')
+        s += txt(x + 87, 428, nm, 12, "#1a2b3c", "middle", True)
+        s += txt(x + 87, 446, v, 11.5, "#a05000", "middle")
+    s += txt(30, 476, "判据 0.6 px，实测差 20-70 倍。但这是**纹理伪影**不是算法能力 ——"
+                      "规则周期纹理让 SGBM 锁错周期，见 PROBE-RESULTS.md。",
+             11.5, "#a05000")
 
-    s += arrow(cx, 534, cx, 562)
-    s += box(cx - 165, 564, 330, 52, "STEREO：SGBM → 三角化", "", color=C_INFRA,
-             fill="#f3e8fd", fs=14)
-    s += arrow(cx, 616, cx, 640)
-    s += box(cx - 210, 642, 420, 40, "D3 锥剔除 → σ 量化 → 体素插入",
-             color=C_INFRA, fill="#f3e8fd", fs=13)
+    # 关键约定
+    s += (f'<rect x="30" y="496" width="1120" height="120" rx="8" '
+          f'fill="#f0f7ff" stroke="#9cc" stroke-width="1.2"/>')
+    s += txt(48, 520, "关键约定（易错点）", 13, "#2a5d8f", bold=True)
+    conv = [
+        "· 环带角是**绝对俯角**：hanqtech MVL 光轴下俯 74°，当相对角处理会看到 0.43 m 地面而非 1-4 m",
+        "· 位姿补偿方向：P_prev = Rᵀ·P_cur + t（不是减 t）。负对照守住：不给位姿时静止墙报 3080 mm/s",
+        "· SGBM 输出恒为正：反向视差不能取负，符号在引擎层已丢",
+        "· 车身掩码按原图像素索引，尺寸必须与实际图像一致（曾硬编 1920 而实际 1280，stride 全错）",
+    ]
+    for i, c in enumerate(conv):
+        s += txt(48, 544 + i * 17, c, 11.5, "#1a3d5f")
 
-    s += (f'<text x="{W-40}" y="{H-14}" text-anchor="end" font-family={FONT!r} '
-          f'font-size="11" fill="#6b7a8f">'
-          f'任一条件不满足即 FROZEN_NEAR（不产出，但不丢帧）</text>')
-    s += "</svg>"
-    return s
+    return s + svg_close()
 
+
+# ---------------------------------------------------------------- 构建
 
 def b64_img(svg_text, mime="image/svg+xml"):
     payload = base64.b64encode(svg_text.encode("utf-8")).decode("ascii")
@@ -244,20 +403,27 @@ def b64_img(svg_text, mime="image/svg+xml"):
 
 
 def png_data_uri(path: Path):
+    """位图内嵌为 data URI。jpeg 用 image/jpeg，否则浏览器不认。"""
+    mime = "image/jpeg" if path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
     payload = base64.b64encode(path.read_bytes()).decode("ascii")
-    return f"data:image/png;base64,{payload}"
+    return f"data:{mime};base64,{payload}"
 
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    figs = {"ARCH": fig_arch(), "PIPE": fig_pipeline(), "FLOW": fig_flow()}
+    figs = {
+        "DASH": fig_dashboard(),
+        "ARCH": fig_arch(),
+        "PIPE": fig_pipeline(),
+        "ALGO": fig_algo(),
+    }
     for k, v in figs.items():
         (OUT / f"fig_{k.lower()}.svg").write_text(v, encoding="utf-8")
     print(f"生成 {len(figs)} 张 SVG: {', '.join(figs)}")
 
     md = OUT / "ARCH-REPORT.md"
     html = OUT / "ARCH-REPORT.html"
-    pdf = OUT / "NFOCC-架构与流程解析.pdf"
+    pdf = OUT / "NFOCC-工程解析报告.pdf"
 
     r = subprocess.run(
         [sys.executable, str(ROOT / "tools" / "md2html.py"), str(md), str(html)],
@@ -269,15 +435,8 @@ def main():
     doc = html.read_text(encoding="utf-8")
     n_fig = 0
 
-    # SVG 图：**内联**而不是 <img src=data:...>。
-    #
-    # 用 <img> 时 Chromium 会把 SVG 栅格化成位图，图内文字**不进文本层**
-    # （实测 "接入层" 搜不到），且 PDF 体积膨胀到 9 MB。
-    # 内联 <svg> 保持矢量：文字可选中、体积降一个数量级。
-    #
-    # 内联是安全的 —— 注入发生在 pandoc **之后**，不会被它的 raw_html
-    # 白名单剥掉（markdown-to-pdf skill 的 pitfall #7 说的是 Markdown 里
-    # 直接写 <svg>，那是另一回事）。
+    # SVG 内联（不是 <img>）—— Chromium 会把 img 的 SVG 栅格化，
+    # 图内文字不进文本层。注入在 pandoc 之后，不会被 raw_html 白名单剥掉。
     for k, svg in figs.items():
         ph = re.compile(r"<p>\s*FIG_%s\s*</p>" % k)
         if ph.search(doc):
@@ -286,12 +445,23 @@ def main():
             doc = ph.sub(lambda _m, i=fig: i, doc)
             n_fig += 1
 
-    # 真实数据 PNG 图
+    # 真实数据位图。
+    #
+    # **优先用 _r.jpg 缩图**：原始 PNG 是 1280x966 起的无损图，
+    # 06_body_mask 是 4 联竖排（1280x3864）有 3.8 MB —— 直接内嵌让 PDF
+    # 涨到 14.7 MB。转成 1400 宽、q=82 的 JPEG 后 0.75 MB，肉眼无差。
+    # 缩图由 tools/shrink_report_images.py 生成。
+    def pick(name):
+        small = ROOT / "viz" / f"{name}_r.jpg"
+        return small if small.exists() else ROOT / "viz" / f"{name}.png"
+
     png_map = {
-        "SHOT_Y": ROOT / "viz" / "sheet_1_y.png",
-        "SHOT_VIEW": ROOT / "viz" / "sheet_2_view.png",
-        "SHOT_DISP": ROOT / "viz" / "sheet_4_disp.png",
-        "SHOT_BEV": ROOT / "viz" / "05_bev_legend.png",
+        "SHOT_Y": pick("sheet_1_y"),
+        "SHOT_VIEW": pick("sheet_2_view"),
+        "SHOT_DISP": pick("sheet_4_disp"),
+        "SHOT_BEV": pick("05_bev"),
+        "SHOT_MASK": pick("06_body_mask"),
+        "SHOT_CLUST": pick("07_clusters"),
     }
     for k, p in png_map.items():
         ph = re.compile(r"<p>\s*%s\s*</p>" % k)
@@ -303,7 +473,7 @@ def main():
 
     html.write_text(doc, encoding="utf-8")
 
-    # --- 断言（在 HTML 层，不看 PDF 观感）---
+    # 断言在 HTML 层，不看 PDF 观感
     n_data = doc.count("data:image/")
     n_inline = doc.count("<svg ")
     assert n_data + n_inline >= n_fig, (
@@ -318,10 +488,26 @@ def main():
     r = subprocess.run([EDGE, "--headless", "--disable-gpu", "--no-sandbox",
                         f"--print-to-pdf={pdf}", "--no-pdf-header-footer",
                         f"file://{html}"], capture_output=True, text=True)
-    if not pdf.exists():
-        print("PDF 生成失败:\n" + r.stdout[-800:] + r.stderr[-800:])
+    if r.returncode != 0:
+        print("Chromium 打印失败:\n" + r.stderr[-800:])
         return 1
-    print(f"PDF: {pdf} ({pdf.stat().st_size/1024:.0f} KB)")
+    print(f"PDF: {pdf}  ({pdf.stat().st_size / 1e6:.1f} MB)")
+
+    # PDF 层断言：页数与文字进文本层
+    try:
+        import fitz
+        d = fitz.open(str(pdf))
+        n_pages = d.page_count
+        all_text = "".join(p.get_text() for p in d)
+        d.close()
+        must = ["NFOCC", "开发进展看板", "工程架构", "数据流 Pipeline", "算法逻辑"]
+        missing = [m for m in must if m not in all_text]
+        assert n_pages >= 5, f"页数过少: {n_pages}"
+        assert not missing, f"关键文字未进文本层: {missing}"
+        print(f"PDF 断言通过: {n_pages} 页，关键文字均可搜索")
+    except ImportError:
+        print("   (跳过 PDF 文字层检查: 无 pymupdf)")
+
     return 0
 
 

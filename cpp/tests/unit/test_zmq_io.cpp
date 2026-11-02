@@ -299,4 +299,93 @@ NF_TEST(zmq_reject_bad_input) {
     NF_CHECK(k == nullptr);
 }
 
+
+/* ---------- 尺寸白名单 ---------- */
+
+/**
+ * 两种尺寸都必须被接受：1920x1536（ICD 设计值）与 1280x966（hanqtech 实拍）。
+ *
+ * 这条用例的存在理由：**原先只测了 1920x1536，所以 1280x966 被拒的问题
+ * 一直没暴露**。测试数据必须覆盖真实数据源的尺寸，否则通过了也不能说明
+ * 接上真数据能用。
+ */
+NF_TEST(up_parse_accepts_both_sizes) {
+    const nf_u32 sizes[2][2] = { {1920u, 1536u}, {1280u, 966u} };
+
+    for (int s = 0; s < 2; ++s) {
+        UpMsgBuilder b;
+        b.w = sizes[s][0];
+        b.h = sizes[s][1];
+        b.build(1);
+
+        const void *frames[NF_MAX_CAMERAS];
+        nf_u32 fbytes[NF_MAX_CAMERAS];
+        for (nf_u32 i = 0; i < NF_MAX_CAMERAS; ++i) {
+            frames[i] = b.imgs[i].data();
+            fbytes[i] = (nf_u32)b.imgs[i].size();
+        }
+        NFUpFrameView v;
+        const NFStatus st = nf_up_parse(b.head.data(), (nf_u32)b.head.size(),
+                                        frames, fbytes, NF_MAX_CAMERAS, &v);
+        std::printf("      %ux%u -> %s\n", sizes[s][0], sizes[s][1],
+                    st == NF_OK ? "接受" : "拒绝");
+        NF_CHECK_MSG(st == NF_OK, "白名单内的尺寸应被接受");
+        NF_CHECK_EQ_INT(v.width, sizes[s][0]);
+        NF_CHECK_EQ_INT(v.height, sizes[s][1]);
+    }
+}
+
+/** 白名单外的尺寸必须被拒（不能放开到任意尺寸） */
+NF_TEST(up_parse_rejects_other_sizes) {
+    UpMsgBuilder b;
+    b.w = 640; b.h = 480;
+    b.build(1);
+
+    const void *frames[NF_MAX_CAMERAS];
+    nf_u32 fbytes[NF_MAX_CAMERAS];
+    for (nf_u32 i = 0; i < NF_MAX_CAMERAS; ++i) {
+        frames[i] = b.imgs[i].data();
+        fbytes[i] = (nf_u32)b.imgs[i].size();
+    }
+    NFUpFrameView v;
+    NF_CHECK_EQ_INT(nf_up_parse(b.head.data(), (nf_u32)b.head.size(),
+                                frames, fbytes, NF_MAX_CAMERAS, &v),
+                    NF_E_PARAM_RANGE);
+}
+
+/** 自定义白名单：只允许一个非常规尺寸 */
+NF_TEST(up_parse_custom_allowlist) {
+    const NFUpAllowedSize allow[2] = { {640u, 480u}, {0u, 0u} };
+
+    UpMsgBuilder b;
+    b.w = 640; b.h = 480;
+    b.build(3);
+
+    const void *frames[NF_MAX_CAMERAS];
+    nf_u32 fbytes[NF_MAX_CAMERAS];
+    for (nf_u32 i = 0; i < NF_MAX_CAMERAS; ++i) {
+        frames[i] = b.imgs[i].data();
+        fbytes[i] = (nf_u32)b.imgs[i].size();
+    }
+    NFUpFrameView v;
+    NF_CHECK_STATUS(nf_up_parse_sized(b.head.data(), (nf_u32)b.head.size(),
+                                      frames, fbytes, NF_MAX_CAMERAS, &v,
+                                      allow, 2), NF_OK);
+    NF_CHECK_EQ_INT(v.width, 640);
+
+    /* 换成 1280x966 就该被这个白名单拒绝 */
+    UpMsgBuilder b2;
+    b2.w = 1280; b2.h = 966;
+    b2.build(4);
+    const void *f2[NF_MAX_CAMERAS];
+    nf_u32 fb2[NF_MAX_CAMERAS];
+    for (nf_u32 i = 0; i < NF_MAX_CAMERAS; ++i) {
+        f2[i] = b2.imgs[i].data();
+        fb2[i] = (nf_u32)b2.imgs[i].size();
+    }
+    NF_CHECK_EQ_INT(nf_up_parse_sized(b2.head.data(), (nf_u32)b2.head.size(),
+                                      f2, fb2, NF_MAX_CAMERAS, &v,
+                                      allow, 2), NF_E_PARAM_RANGE);
+}
+
 int main() { return nftest::run_all(); }

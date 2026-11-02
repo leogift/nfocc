@@ -139,6 +139,29 @@ typedef struct {
 } NFUpFrameView;
 
 /**
+ * 允许的上游图像尺寸（白名单）。
+ *
+ * ## 为什么从"固定 1920x1536"改成白名单
+ * 原先 `nf_up_parse` 硬校验 `width==1920 && height==1536`，而实际接入的
+ * hanqtech 数据是 **1280x966** —— ZMQ 通路接上真实数据后每帧都被判格式
+ * 错误直接丢弃。测试没发现是因为测试数据是按 ICD 尺寸造的。
+ *
+ * 改成白名单后，两种尺寸都接受。**保留白名单而不是完全放开**：
+ * 上游尺寸决定下游所有栅格/内存预算（`nf_pipeline_mem_bytes` 按尺寸
+ * 算），接受任意尺寸会让预算失效。新增数据源时在表里加一行即可。
+ */
+typedef struct {
+    nf_u32 width;
+    nf_u32 height;
+} NFUpAllowedSize;
+
+#define NF_UP_ALLOWED_MAX 4
+
+/** 默认白名单：ICD 设计尺寸 + hanqtech 实拍尺寸 */
+#define NF_UP_DEFAULT_SIZES \
+    { { 1920u, 1536u }, { 1280u, 966u }, { 0u, 0u }, { 0u, 0u } }
+
+/**
  * 解析上游 multipart 消息。
  * @param frames  每路一段(段 1..n_cameras)
  * @param n_frames 段数
@@ -147,6 +170,19 @@ typedef struct {
 NFStatus nf_up_parse(const void *head, nf_u32 head_bytes,
                      const void *const *frames, const nf_u32 *frame_bytes,
                      nf_u32 n_frames, NFUpFrameView *out);
+
+/**
+ * 同上，但显式指定允许的尺寸集。
+ *
+ * @param allowed   允许尺寸数组（width/height 为 0 的条目表示表尾）
+ * @param n_allowed 条目数上限
+ *
+ * 传 NULL 时用 `NF_UP_DEFAULT_SIZES`。
+ */
+NFStatus nf_up_parse_sized(const void *head, nf_u32 head_bytes,
+                           const void *const *frames, const nf_u32 *frame_bytes,
+                           nf_u32 n_frames, NFUpFrameView *out,
+                           const NFUpAllowedSize *allowed, nf_u32 n_allowed);
 
 /** 序列化下游消息：返回需要的总字节数(供调用方分配)。
  *  layout: [NFOutHeader][NFPoint * n][zmap][zindex] */

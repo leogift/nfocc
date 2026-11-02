@@ -18,11 +18,16 @@ extern "C" {
  * 上游解析
  * ================================================================== */
 
-NFStatus nf_up_parse(const void *head, nf_u32 head_bytes,
-                     const void *const *frames, const nf_u32 *frame_bytes,
-                     nf_u32 n_frames, NFUpFrameView *out) {
+NFStatus nf_up_parse_sized(const void *head, nf_u32 head_bytes,
+                           const void *const *frames, const nf_u32 *frame_bytes,
+                           nf_u32 n_frames, NFUpFrameView *out,
+                           const NFUpAllowedSize *allowed, nf_u32 n_allowed) {
     if (!head || !frames || !frame_bytes || !out) return NF_E_PARAM_NULL;
     if (head_bytes < sizeof(NFUpHeader)) return NF_E_PARAM_RANGE;
+
+    /* 未指定白名单时用默认两种尺寸 */
+    static const NFUpAllowedSize kDefault[NF_UP_ALLOWED_MAX] = NF_UP_DEFAULT_SIZES;
+    if (!allowed) { allowed = kDefault; n_allowed = NF_UP_ALLOWED_MAX; }
 
     std::memset(out, 0, sizeof(*out));
     std::memcpy(&out->header, head, sizeof(NFUpHeader));
@@ -46,9 +51,22 @@ NFStatus nf_up_parse(const void *head, nf_u32 head_bytes,
         NFUpImageHeader ih;
         std::memcpy(&ih, frames[i], sizeof(NFUpImageHeader));
 
-        /* 尺寸严格: SPEC-UPSTREAM §2.1 */
-        if (ih.width != (nf_u32)NF_IMG_W || ih.height != (nf_u32)NF_IMG_H)
-            return NF_E_PARAM_RANGE;
+        /**
+         * 尺寸必须在白名单内（SPEC-UPSTREAM §2.1 的可配置版）。
+         *
+         * 原先硬校验 1920x1536，而 hanqtech 实拍是 1280x966 ——
+         * ZMQ 通路接真数据后每帧被拒。白名单同时容纳两者，
+         * 且不放开到任意尺寸（下游栅格与内存预算依赖尺寸）。
+         */
+        {
+            nf_u8 hit = 0;
+            for (nf_u32 k = 0; k < n_allowed; ++k) {
+                if (allowed[k].width == 0) continue;      /* 表尾 */
+                if (allowed[k].width == ih.width &&
+                    allowed[k].height == ih.height) { hit = 1; break; }
+            }
+            if (!hit) return NF_E_PARAM_RANGE;
+        }
         if (ih.format != 0) return NF_E_PARAM_RANGE;   /* 只支持 GRAY8 */
 
         /* **data_bytes 必须 == stride*height**: 防止上游截断后被当成完整帧解析 */
@@ -106,6 +124,14 @@ NFStatus nf_out_size(const NFOutHeader *h, nf_u32 *out_bytes) {
     if (total > 0xFFFFFFFFull) return NF_E_OUTPUT_OVERFLOW;
     *out_bytes = (nf_u32)total;
     return NF_OK;
+}
+
+/** 默认白名单版本 —— 供不需要自定义尺寸的调用方使用 */
+NFStatus nf_up_parse(const void *head, nf_u32 head_bytes,
+                     const void *const *frames, const nf_u32 *frame_bytes,
+                     nf_u32 n_frames, NFUpFrameView *out) {
+    return nf_up_parse_sized(head, head_bytes, frames, frame_bytes,
+                             n_frames, out, nullptr, 0);
 }
 
 } /* extern "C" */
