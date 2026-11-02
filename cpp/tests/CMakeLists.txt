@@ -132,6 +132,14 @@ target_link_libraries(test_d4_baseline PRIVATE nfocc_core)
 add_test(NAME unit_d4_baseline COMMAND test_d4_baseline)
 set_tests_properties(unit_d4_baseline PROPERTIES LABELS unit)
 
+# ZMQ 零拷贝收发：生命周期与所有权转移
+# nfocc_io 已 PUBLIC 提供 zmq 的头文件与链接，这里直接依赖它
+add_executable(test_zmq_io unit/test_zmq_io.cpp)
+target_include_directories(test_zmq_io PRIVATE ${NF_TEST_INC})
+target_link_libraries(test_zmq_io PRIVATE nfocc_io)
+add_test(NAME unit_zmq_io COMMAND test_zmq_io)
+set_tests_properties(unit_zmq_io PROPERTIES LABELS unit)
+
 # ---------------------------------------------------------------- 系统测试
 if(TARGET nfocc_run)
   add_test(NAME system_run_synthetic
