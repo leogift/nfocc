@@ -62,7 +62,7 @@ case "$TARGET" in
           -DNF_WITH_OPENCV=OFF \
           -DNF_WITH_ZMQ=OFF \
           -DNF_WITH_ORT=OFF \
-          "${EXTRA[@]}"
+          ${EXTRA[@]+"${EXTRA[@]}"}
     cmake --build build/arm -j"$JOBS"
     msg "产物架构校验"
     FILE_BIN=$(find build/arm -name 'nfocc_run' -type f -perm -u+x | head -1)

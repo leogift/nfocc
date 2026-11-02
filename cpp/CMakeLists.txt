@@ -161,10 +161,30 @@ target_include_directories(nfocc_engine_model PRIVATE ${CMAKE_CURRENT_SOURCE_DIR
 target_link_libraries(nfocc_engine_model PUBLIC nfocc_core)
 
 # ---------------------------------------------------------------- IO
-if(NF_WITH_ZMQ AND NF_ZMQ_FOUND)
-  # file_io 与 zmq_io 并存: 文件回放(SIL 调试)不依赖 ZMQ 是否可用
-  find_package(ZLIB REQUIRED)
+# ZLIB 探测**必须在两个分支之前**：PNG 解码在 ZMQ 开/关两种配置下都要用。
+# 原实现只在 ZMQ 分支里 find_package，ZMQ=OFF（交叉编译）时
+# `ZLIB::ZLIB` 引用到一个不存在的 target，Generate 阶段直接失败。
+#
+# 交叉编译时找不到 aarch64 的 zlib（宿主 dylib 不能用），此时降级为
+# **不编 PNG 支持**（NF_HAS_ZLIB=0），核心库照常构建 —— 板端拿到的
+# 是二进制帧输入，本来也不需要解码 PNG。
+if(CMAKE_CROSSCOMPILING)
+  find_package(ZLIB QUIET)
+else()
+  find_package(ZLIB QUIET)
+endif()
+if(ZLIB_FOUND AND NOT CMAKE_CROSSCOMPILING)
+  set(NF_HAS_ZLIB 1)
+  message(STATUS "NFOCC: ZLIB -> PNG 解码启用")
+else()
+  set(NF_HAS_ZLIB 0)
+  message(STATUS "NFOCC: ZLIB 不可用 -> PNG 解码关闭(仅影响读图，核心库不受影响)")
+endif()
+# ws_png.cpp 编在 nfocc_core 里，所以宏必须同时给 core 目标，
+# 否则交叉编译时它仍会 #include <zlib.h> 去找宿主头文件。
+target_compile_definitions(nfocc_core PRIVATE NF_HAS_ZLIB=${NF_HAS_ZLIB})
 
+if(NF_WITH_ZMQ AND NF_ZMQ_FOUND)
 add_library(nfocc_io STATIC src/io/zmq_io.cpp src/io/file_io.cpp
                             src/io/input_source.cpp
                             src/io/hanqtech_loader.cpp
@@ -179,16 +199,22 @@ add_library(nfocc_io STATIC src/io/zmq_io.cpp src/io/file_io.cpp
     target_link_libraries(nfocc_io PUBLIC ${ZMQ_LIBRARIES})
     target_link_directories(nfocc_io PUBLIC ${ZMQ_LIBRARY_DIRS})
   endif()
-  target_link_libraries(nfocc_io PUBLIC ZLIB::ZLIB)
+  if(NF_HAS_ZLIB)
+    target_link_libraries(nfocc_io PUBLIC ZLIB::ZLIB)
+  endif()
   target_compile_options(nfocc_io PRIVATE -fexceptions)
   target_compile_definitions(nfocc_io PUBLIC NF_HAS_ZMQ=1)
+  target_compile_definitions(nfocc_io PRIVATE NF_HAS_ZLIB=${NF_HAS_ZLIB})
   message(STATUS "NFOCC: ZeroMQ -> IO")
 else()
   add_library(nfocc_io STATIC src/io/file_io.cpp src/io/input_source.cpp
                             src/io/hanqtech_loader.cpp
                             src/io/ws_source.cpp src/io/ws_png.cpp)
-  target_link_libraries(nfocc_io PUBLIC ZLIB::ZLIB)
+  if(NF_HAS_ZLIB)
+    target_link_libraries(nfocc_io PUBLIC ZLIB::ZLIB)
+  endif()
   target_compile_options(nfocc_io PRIVATE -fexceptions)
+  target_compile_definitions(nfocc_io PRIVATE NF_HAS_ZLIB=${NF_HAS_ZLIB})
   message(STATUS "NFOCC: IO 使用文件实现")
 endif()
 target_include_directories(nfocc_io PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -197,17 +223,17 @@ target_link_libraries(nfocc_io PUBLIC nfocc_core)
 # ---------------------------------------------------------------- 主程序
 if(NF_BUILD_TOOLS)
   add_executable(nfocc_run tools/nfocc_run.cpp)
-add_executable(nfocc_viz tools/nfocc_viz.cpp)
   # **不链接 nfocc_engine_bind**: bind 符号已各自并入引擎库
   target_link_libraries(nfocc_run PRIVATE nfocc_core nfocc_engine_model nfocc_io)
-if(TARGET nfocc_viz)
-  target_link_libraries(nfocc_viz PRIVATE nfocc_core nfocc_engine_model nfocc_io)
-endif()
   if(NF_SGBM_ON)
     target_link_libraries(nfocc_run PRIVATE nfocc_engine_sgbm)
     target_compile_definitions(nfocc_run PRIVATE NF_WITH_SGBM=1)
-    # nfocc_viz 直接用 SGBM 引擎（可视化视差图），必须链接同一库
-    target_link_libraries(nfocc_viz PRIVATE nfocc_engine_sgbm)
+    # nfocc_viz 直接用 SGBM 引擎（可视化视差图），必须链接同一库。
+    # 它是**调试工具**：交叉编译时 OpenCV=OFF，无从编起，
+    # 故只在 SGBM 可用时构建，避免 aarch64 链接期报 undefined reference。
+    add_executable(nfocc_viz tools/nfocc_viz.cpp)
+    target_link_libraries(nfocc_viz PRIVATE nfocc_core nfocc_engine_model
+                                          nfocc_io nfocc_engine_sgbm)
     target_compile_options(nfocc_viz PRIVATE -fexceptions)
   endif()
   if(NF_HAS_ZMQ)

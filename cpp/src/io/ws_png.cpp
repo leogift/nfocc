@@ -16,7 +16,12 @@
 #include <cstdlib>
 #include <cstring>
 #include <vector>
-#include <zlib.h>
+#ifndef NF_HAS_ZLIB
+#  define NF_HAS_ZLIB 1     /* 本机默认: 有 zlib */
+#endif
+#if NF_HAS_ZLIB
+#  include <zlib.h>
+#endif
 
 namespace nf {
 namespace {
@@ -37,6 +42,7 @@ inline int paeth(int a, int b, int c) {
 
 }  // namespace
 
+#if NF_HAS_ZLIB
 bool png_read_gray(const char *path, Png *out) {
     std::FILE *f = std::fopen(path, "rb");
     if (!f) return false;
@@ -146,5 +152,17 @@ bool png_read_gray(const char *path, Png *out) {
     out->data.swap(gray);
     return true;
 }
+
+#else  /* !NF_HAS_ZLIB */
+
+bool png_read_gray(const char *path, Png *out) {
+    /* 本构建未链接 zlib（交叉编译时找不到 aarch64 的 zlib）。
+     * 板端输入是二进制帧，不需要 PNG 解码。明确返回失败，
+     * 让调用方知道，而不是静默读出一张全黑的图。 */
+    (void)path; (void)out;
+    return false;
+}
+
+#endif /* NF_HAS_ZLIB */
 
 }  // namespace nf
