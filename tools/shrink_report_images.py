@@ -25,6 +25,9 @@ from pathlib import Path
 
 from PIL import Image
 
+# Pillow 9 起 LANCZOS 移到 Image.Resampling，旧名仍可用但 Lint 不认
+RESAMPLE = getattr(getattr(Image, "Resampling", Image), "LANCZOS", 1)
+
 ROOT = Path("/Volumes/Workspace/NFOCC")
 VIZ = ROOT / "viz"
 
@@ -46,17 +49,25 @@ def main():
         im = Image.open(src).convert("RGB")
         w, h = im.size
         if w > MAX_W:
-            im = im.resize((MAX_W, int(h * MAX_W / w)), Image.LANCZOS)
+            im = im.resize((MAX_W, int(h * MAX_W / w)), RESAMPLE)
 
         dst = VIZ / f"{name}_r.jpg"
         im.save(dst, quality=QUALITY, optimize=True)
 
         a, b = src.stat().st_size, dst.stat().st_size
+
+        # 本来就小的图（如 05_bev 只有 20 KB）转 JPEG 反而变大，
+        # 这时删掉缩图，让 build 脚本回退用原 PNG。
+        if b >= a:
+            dst.unlink()
+            total_in += a
+            total_out += a
+            print(f"  {name}: {a/1e6:5.2f} MB （已足够小，保留 PNG）")
+            continue
+
         total_in += a
         total_out += b
         print(f"  {name}: {a/1e6:5.2f} MB -> {b/1e6:5.2f} MB")
-        # 缩图必须真的变小，否则说明参数没起作用
-        assert b < a, f"{name} 缩图后反而变大"
 
     if total_in:
         print(f"  合计 {total_in/1e6:.2f} MB -> {total_out/1e6:.2f} MB "
