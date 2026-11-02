@@ -22,9 +22,9 @@
 | 三角化（叉积闭式） | 完成 | float32 下 5e-6 |
 | 门控状态机 | 完成 | 四种工况分流 |
 | 体素 CMA + zMap + 双基线状态机 | 完成 | 1355 次断言 |
-| D1 掩码光栅化 API | **已实现** | `nf_mask_rasterize_polygon`，面积 768 = 理论值 |
+| D1 掩码光栅化 API | **已实现且已接线** | `pipeline.cpp:214` 传入 `cfg.body_mask` |
 | D2 双向一致性权重 | **已实现** | `nf_occlusion_weight` |
-| D3 FoE 锥过滤 | **已实现** | `nf_pt_in_foe`，已接入 pipeline |
+| D3 FoE 锥过滤 | **已实现且已接线** | `pipeline.cpp:526`、`:692` 两处 |
 | D4 双基线交叉验证 | **已实现** | `nf_voxel_verify_cross` |
 | σ 传播 | **已实现** | `nf_compute_spatial_uncertainty_cm` |
 | ZMQ 上下游 | 完成 | 下游收到 3 条，436/376/305 点 |
@@ -38,7 +38,7 @@
 | D2 双向一致性 | 函数在，pipeline 未调用 |
 | D4 交叉验证 | 函数在，pipeline 未调用 |
 | 双基线状态机 | 类在，pipeline 仍用旧 `nf_gate_decide` |
-| D1 车身掩码 | pipeline 传 `nullptr`，无多边形数据源 |
+| ~~D1 车身掩码~~ | **已接线**（此前误记为未接）。缺的是多边形数据，不是代码 |
 
 **这一条最关键**：`test_algo_rev` 12 用例全过，验证的是**函数本身**，
 不是"系统在跑这些防御"。产品级交付必须区分这两者。
