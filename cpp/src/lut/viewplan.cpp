@@ -1,58 +1,62 @@
 /**
  * @file viewplan.cpp
- * @brief 6 视口规划表实现。
+ * @brief 6 视口规划表（分类张角）实现。
  */
 #include "nfocc/nfocc_viewplan.h"
+#include "nfocc/nfocc_default.h"
 
 #include <cmath>
+#include <cstring>
+
+namespace {
+
+/** 角度差归一化到 [-180, 180] */
+float ang_diff(float a, float b) {
+    float d = a - b;
+    while (d > 180.0f) d -= 360.0f;
+    while (d < -180.0f) d += 360.0f;
+    return d;
+}
+
+}  // namespace
 
 extern "C" {
 
-nf_u32 nf_viewplan_default(NFViewEntry *out, nf_u32 cap) {
-    if (!out || cap < NF_MAX_VIEWS) return 0;
+nf_u32 nf_viewplan_default(NFViewPlanEntry *out, nf_u32 max_entries) {
+    if (!out || max_entries == 0) return 0;
 
-    /* 顺序: 侧向先行(直接可用), 再前后偏转视口。
-     * use_sgbm=1 需满足: 平移在视口系的横向分量占比高且极线离散小。
-     * 实测(SPEC-VIEWPLAN §3): ML/MR 在直行时极线离散最小;
-     * FV/RV 偏 30° 后一行内极差仍 80°, SGBM 不可用 -> use_sgbm=0。 */
-    /* 需求定案 (v0.7.0): ML/MR 保持单视口 0°; FV/RV 各 ±45°; 视锥 120°。
-     *
-     * 偏 45° 的 LUT 有效率是 94.3%, 不是 100% —— 几何必然:
-     * 视口水平 ±60°, 偏转后边缘到光轴 105°, 超出鱼眼水平视场 100°,
-     * 约 5.7% 像素落在有效圆外。实测曲线 0°/30°->100%, 45°->94.3%, 60°->76.0%。
-     *
-     * 偏转角选 45° 的依据:
-     *   - 横向基线 = T·sin(45°) = 0.707T, 比 30° 的 0.5T 高 41%
-     *   - 30° 时 Z=3m 视差 9.24px(120° 视锥), 实测深度误差 -11%~+21% 抖动
-     *   - 45° 的视差更大, 但极线离散也更差, 是否更准需实测(见 verify_viewplan)
-     *
-     * use_sgbm=0 的原因与偏转角无关: FV/RV 偏转后一行内极线方向跨度
-     * 仍在 80° 量级(SPEC-VIEWPLAN §3), SGBM 的"按行水平搜索"假设不成立,
-     * 只能走径向膨胀匹配。
-     */
-    /* v0.9.0: 视口改为**虚拟相机**（pitch=0, roll=0），yaw 用**车系绝对角**。
-     *   ML  +90°    MR  −90°
-     *   FV  −45° / +45°
-     *   RV  −135° / +135°   （= 180° ± 45°）
-     * 前值 0/0/±45/±45 是"相对真实光轴"的偏移，随安装角变化，
-     * 多相机间不共面；改成绝对角后所有视口统一在同一理想相机模型下。 */
-    out[0].cam_id = 2;  out[0].yaw_deg = +90.0f;  out[0].use_sgbm = 1;  /* ML */
-    out[1].cam_id = 3;  out[1].yaw_deg = -90.0f;  out[1].use_sgbm = 1;  /* MR */
-    out[2].cam_id = 0;  out[2].yaw_deg = -45.0f;  out[2].use_sgbm = 0;  /* FV 左前 */
-    out[3].cam_id = 0;  out[3].yaw_deg = +45.0f;  out[3].use_sgbm = 0;  /* FV 右前 */
-    out[4].cam_id = 1;  out[4].yaw_deg = -135.0f; out[4].use_sgbm = 0;  /* RV 左后 */
-    out[5].cam_id = 1;  out[5].yaw_deg = +135.0f; out[5].use_sgbm = 0;  /* RV 右后 */
-    return NF_MAX_VIEWS;
+    /* 前后用 90°，左右用 150° —— 见头文件说明 */
+    const float hf_front = NF_V_VIEW_HFOV_DEG_FRONT;
+    const float hf_side  = NF_V_VIEW_HFOV_DEG_SIDE;
+    const float vf       = NF_V_VIEW_VFOV_DEG;
+
+    const NFViewPlanEntry all[6] = {
+        /* cam  yaw     hfov     vfov  side */
+        { 0u,  -45.0f, hf_front, vf, 0u, {0,0,0} },   /* FV 左前 */
+        { 0u,  +45.0f, hf_front, vf, 0u, {0,0,0} },   /* FV 右前 */
+        { 1u, -135.0f, hf_front, vf, 0u, {0,0,0} },   /* RV 左后 */
+        { 1u, +135.0f, hf_front, vf, 0u, {0,0,0} },   /* RV 右后 */
+        { 2u,  +90.0f, hf_side,  vf, 1u, {0,0,0} },   /* ML */
+        { 3u,  -90.0f, hf_side,  vf, 1u, {0,0,0} },   /* MR */
+    };
+
+    const nf_u32 n = (max_entries < 6u) ? max_entries : 6u;
+    std::memcpy(out, all, (size_t)n * sizeof(NFViewPlanEntry));
+    return n;
 }
 
-nf_f32 nf_viewplan_azimuth_deg(nf_f32 cam_yaw_deg, nf_f32 offset_deg) {
-    /* 视口偏转绕相机 y 轴(向下)。车系 yaw 逆时针为正(从上方看)，
-     * 而相机 y 轴朝下，故绕它转正角在车系里是**顺时针**，即 yaw 减小。
-     * 实测对照: FV(0°) 偏 +30 后视口朝 +30(右) -> 车系 yaw 应为 −30。 */
-    nf_f32 a = cam_yaw_deg - offset_deg;
-    while (a <= -180.0f) a += 360.0f;
-    while (a > 180.0f) a -= 360.0f;
-    return a;
+const NFViewPlanEntry *nf_viewplan_find(const NFViewPlanEntry *plan, nf_u32 n,
+                                        nf_u32 cam_id, nf_f32 yaw_deg) {
+    if (!plan) return nullptr;
+    const NFViewPlanEntry *best = nullptr;
+    float best_d = 1e9f;
+    for (nf_u32 i = 0; i < n; ++i) {
+        if (plan[i].cam_id != cam_id) continue;
+        const float d = std::fabs(ang_diff(plan[i].yaw_deg, yaw_deg));
+        if (d < best_d) { best_d = d; best = &plan[i]; }
+    }
+    /* 容差 1°：调用方可能传入 45.0001 这种 */
+    return (best && best_d < 1.0f) ? best : nullptr;
 }
 
 } /* extern "C" */

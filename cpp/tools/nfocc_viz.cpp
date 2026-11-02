@@ -188,14 +188,21 @@ int main(int argc, char **argv) {
      *
      * **历史**: 早期这里每路只取一个代表朝向（FV 0°、RV 180°），
      * 于是调试图只有 4 张视口，看不到 ±45° 的两个 —— 与本方案不符。 */
-    struct ViewSlot { int cam; float yaw; const char *tag; };
+    /**
+     * 视口槽带**各自的张角**：前后 90°、左右 150°。
+     *
+     * 前后成对使用（±45° 各 90°，合起来 180° 前向覆盖），
+     * 收窄后 f 从 137 提到 512，角分辨率 3.7 倍。
+     * 左右单个使用，必须 150° 才能覆盖整侧。
+     */
+    struct ViewSlot { int cam; float yaw; float hfov; const char *tag; };
     static const ViewSlot kViews[6] = {
-        { 0, -45.0f, "FV_p-45" },   /* FV 左前 */
-        { 0, +45.0f, "FV_p+45" },   /* FV 右前 */
-        { 1, -135.0f, "RV_p-45" },  /* RV 左后 */
-        { 1, +135.0f, "RV_p+45" },  /* RV 右后 */
-        { 2, +90.0f, "ML" },        /* ML 左 */
-        { 3, -90.0f, "MR" },        /* MR 右 */
+        { 0,  -45.0f, NF_V_VIEW_HFOV_DEG_FRONT, "FV_p-45" },
+        { 0,  +45.0f, NF_V_VIEW_HFOV_DEG_FRONT, "FV_p+45" },
+        { 1, -135.0f, NF_V_VIEW_HFOV_DEG_FRONT, "RV_p-45" },
+        { 1, +135.0f, NF_V_VIEW_HFOV_DEG_FRONT, "RV_p+45" },
+        { 2,  +90.0f, NF_V_VIEW_HFOV_DEG_SIDE,  "ML" },
+        { 3,  -90.0f, NF_V_VIEW_HFOV_DEG_SIDE,  "MR" },
     };
     const int nview = 6;
     std::printf("视口 %ux%u f=%.2f（虚拟相机 pitch=0, roll=0）\n",
@@ -259,7 +266,12 @@ int main(int argc, char **argv) {
         const NFPose *pose = &cal.pose[c];
 
         /* 该视口的虚拟相机朝向（绝对 yaw, pitch=0） */
-        NFViewParams vpc = vp;
+        /* 按该视口自己的 hfov 重建，不能沿用全局 vp（那是侧向 150°） */
+        NFViewParams vpc;
+        if (nf_view_params_derive_fov(&vpc, vw, kViews[vi].hfov,
+                                      NF_V_VIEW_VFOV_DEG) != NF_OK) {
+            std::printf("view%d 参数失败\n", vi); continue;
+        }
         vpc.yaw_deg = kViews[vi].yaw;
         vpc.pitch_deg = 0.0f;
 
@@ -273,7 +285,7 @@ int main(int argc, char **argv) {
             std::printf("view%d(%s) LUT 失败: %s\n", vi, tag, nf_status_str(sl));
             continue;
         }
-        std::printf("view%-6d %-9s (cam%d %s yaw=%+6.1f) LUT 有效 %.1f%%\n",
+        std::printf("view%-6d %-9s (cam%d %s yaw=%+6.1f hfov=%3.0f f=%6.1f) LUT 有效 %.1f%%\n",
                     vi, tag, c, cal.name[c], (double)kViews[vi].yaw,
                     100.0 * st.valid / st.total);
 

@@ -231,6 +231,13 @@ if(NF_BUILD_TOOLS)
     # nfocc_viz 直接用 SGBM 引擎（可视化视差图），必须链接同一库。
     # 它是**调试工具**：交叉编译时 OpenCV=OFF，无从编起，
     # 故只在 SGBM 可用时构建，避免 aarch64 链接期报 undefined reference。
+    # 视差级探针：分离匹配误差与几何/融合误差。
+    # 需要 SGBM 引擎与场景渲染（合成真值），故同样只在 NF_SGBM_ON 下构建。
+    add_executable(nfocc_disp_probe tools/nfocc_disp_probe.cpp)
+    target_link_libraries(nfocc_disp_probe PRIVATE nfocc_core nfocc_engine_model
+                                                   nfocc_engine_sgbm)
+    target_compile_options(nfocc_disp_probe PRIVATE -fexceptions)
+
     add_executable(nfocc_viz tools/nfocc_viz.cpp)
     target_link_libraries(nfocc_viz PRIVATE nfocc_core nfocc_engine_model
                                           nfocc_io nfocc_engine_sgbm)
