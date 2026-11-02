@@ -38,6 +38,15 @@
 | A3 | `DECISION-DEPTH-ACCURACY.md` | **精度决策**：150°/1024, 5-15km/h 的参数取舍与实测 |
 | A4 | `APPENDIX-OPEN.md` | 未决项：每题给选项，等用户决定 |
 
+### 报告（PDF）
+
+| 文件 | 内容 |
+|---|---|
+| `report/NFOCC-工程解析报告.pdf` | 15 页：开发进展看板 / 工程架构 / 数据流 Pipeline / 算法逻辑 / 实拍图 / 已知问题 |
+| `report/ARCH-REPORT.md` | 上者正文（改内容后重跑 `tools/build_arch_report.py`） |
+
+生成流程：`tools/shrink_report_images.py`（缩图）→ `tools/build_arch_report.py`（出 PDF）。
+
 ### 第二层：已落地的实现记录
 
 | 顺序 | 文档 | 回答什么问题 |
