@@ -38,6 +38,7 @@ const char *nf_mode_str(NFMode m) {
     case NF_MODE_FROZEN_NEAR: return "FROZEN_NEAR";
     case NF_MODE_FROZEN_FAR:  return "FROZEN_FAR";
     case NF_MODE_FROZEN_GAP:  return "FROZEN_GAP";
+    case NF_MODE_FROZEN_ROT:  return "FROZEN_ROT";
     }
     return "UNKNOWN";
 }
@@ -176,6 +177,84 @@ NFStatus nf_forward_range(const nf_f32 *u_hat, const nf_f32 *v_hat,
         ok[i] = 1;
     }
     return NF_OK;
+}
+
+/* ==================== D3: FoE 发散锥 ==================== */
+
+nf_u8 nf_pt_in_foe(const nf_f32 *P, const nf_f32 *apex,
+                   const nf_f32 *dir, nf_f32 cos_ap_sq) {
+    if (!P || !apex || !dir) return 0u;
+
+    /* h = P - apex （apex 必须是相机光心，不是平移向量） */
+    const nf_f32 hx = P[0] - apex[0];
+    const nf_f32 hy = P[1] - apex[1];
+    const nf_f32 hz = P[2] - apex[2];
+
+    /* delta = h · dir_hat */
+    const nf_f32 delta = hx * dir[0] + hy * dir[1] + hz * dir[2];
+
+    /* 物点必须在平移方向**前方**，否则不在 FoE 锥内 */
+    if (!(delta > 0.0f)) return 0u;
+
+    /* 等价于「视线与平移方向夹角 <= aperture」：
+     *   cos(theta) = delta / |h| >= cos(aperture)
+     *   => delta^2 >= |h|^2 * cos^2(aperture)
+     * 用平方形式避免开方与除零。 */
+    const nf_f32 h2 = hx * hx + hy * hy + hz * hz;
+    return (delta * delta >= h2 * cos_ap_sq) ? 1u : 0u;
+}
+
+/* ==================== D2: 双向一致性软权重 ==================== */
+
+nf_f32 nf_occlusion_weight(nf_f32 d_fwd, nf_f32 d_bwd,
+                           nf_f32 tau, nf_f32 lambda) {
+    if (!(tau > 0.0f)) return 1.0f;              /* 未配置 -> 不抑制 */
+    if (!(lambda >= 0.0f)) lambda = 0.0f;
+
+    /* 残差取绝对值；d_bwd 须与 d_fwd 同号约定（见头文件说明） */
+    const nf_f32 r = std::fabs(d_fwd - d_bwd);
+
+    if (r <= tau) return 1.0f;
+
+    /* 平滑衰减：1 / (1 + lambda*(r/tau - 1))
+     * 比硬阈值好 —— 硬切会让体素边界出现锯齿。 */
+    const nf_f32 w = 1.0f / (1.0f + lambda * (r / tau - 1.0f));
+    return (w < 0.0f) ? 0.0f : w;
+}
+
+/* ==================== 空间不确定度（L2 严格传播） ==================== */
+
+nf_u8 nf_compute_spatial_uncertainty_cm(nf_f32 f_px, nf_f32 b_mm,
+                                        nf_f32 d_px, nf_f32 sig_d,
+                                        nf_f32 sig_b) {
+    const nf_u8 kSentinel = 255u;
+
+    /* 任一项无意义 -> 哨兵 */
+    if (!(f_px > 0.0f) || !(b_mm > 0.0f) || !(d_px > 0.0f)) return kSentinel;
+    if (!(sig_d >= 0.0f) || !(sig_b >= 0.0f)) return kSentinel;
+
+    /**
+     * Z = f*b/d，全微分:
+     *   dZ = -(f*b/d^2) dd + (f/d) db
+     * 两项独立，方差为**平方和**（L2）：
+     *   sZ = sqrt( (f*b/d^2 * sig_d)^2 + (f/d * sig_b_abs)^2 )
+     * 其中 sig_b_abs = b * sig_b（sig_b 是相对误差率）。
+     *
+     * 若改用 L1 线性相加（原规范写法），结果比本式大约 sqrt(2) 倍，
+     * 是保守上界而非严格传播。本实现取严格式。
+     */
+    const nf_f32 z_mm = f_px * b_mm / d_px;
+    const nf_f32 t_d = (z_mm / d_px) * sig_d;     /* (f*b/d^2)*sig_d */
+    const nf_f32 t_b = z_mm * sig_b;              /* (f/d)*(b*sig_b) */
+    const nf_f32 s_mm = std::sqrt(t_d * t_d + t_b * t_b);
+
+    if (!std::isfinite(s_mm)) return kSentinel;
+
+    nf_f32 cm = s_mm * 0.1f;                       /* mm -> cm */
+    cm += 0.5f;                                    /* round */
+    if (cm < 1.0f) return 1u;
+    if (cm > 254.0f) return 254u;
+    return (nf_u8)cm;
 }
 
 } /* extern "C" */

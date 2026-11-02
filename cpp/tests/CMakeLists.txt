@@ -69,6 +69,13 @@ target_compile_options(test_match PRIVATE -fexceptions)
 add_test(NAME unit_match COMMAND test_match)
 set_tests_properties(unit_match PROPERTIES LABELS unit)
 
+add_executable(test_algo_rev unit/test_algo_rev.cpp)
+target_include_directories(test_algo_rev PRIVATE ${NF_TEST_INC})
+target_link_libraries(test_algo_rev PRIVATE nfocc_core)
+target_compile_options(test_algo_rev PRIVATE -fexceptions)
+add_test(NAME unit_algo_rev COMMAND test_algo_rev)
+set_tests_properties(unit_algo_rev PROPERTIES LABELS unit)
+
 add_executable(test_hanqtech unit/test_hanqtech.cpp)
 target_include_directories(test_hanqtech PRIVATE ${NF_TEST_INC})
 target_link_libraries(test_hanqtech PRIVATE nfocc_core)

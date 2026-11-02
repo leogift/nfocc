@@ -447,4 +447,42 @@ NFStatus nf_view_pixel_to_ray(const NFViewParams *vp, nf_f32 u, nf_f32 v,
     return NF_OK;
 }
 
+/* ==================== REV-002: D1 车身掩码光栅化 ==================== */
+
+NFStatus nf_mask_rasterize_polygon(nf_u8 *mask, nf_u32 w, nf_u32 h,
+                                   const nf_f32 *poly_x, const nf_f32 *poly_y,
+                                   nf_u32 n_pts) {
+    if (!mask || !poly_x || !poly_y) return NF_E_PARAM_NULL;
+    if (w == 0 || h == 0) return NF_E_PARAM_RANGE;
+    if (n_pts < 3) return NF_E_PARAM_RANGE;
+
+    std::memset(mask, 0, (size_t)w * h);
+
+    /* 逐行处理，便于并行且缓存友好 */
+    for (nf_u32 py = 0; py < h; ++py) {
+        const float pyf = (float)py + 0.5f;
+        nf_u8 *row = mask + (size_t)py * w;
+        for (nf_u32 px = 0; px < w; ++px) {
+            const float pxf = (float)px + 0.5f;
+            nf_u32 crossings = 0;
+            for (nf_u32 i = 0; i < n_pts; ++i) {
+                const nf_u32 j = (i + 1u) % n_pts;
+                const float yi = poly_y[i], yj = poly_y[j];
+                const float xi = poly_x[i], xj = poly_x[j];
+
+                /* 只在"跨越该水平线"的边上判定 */
+                if ((yi > pyf) == (yj > pyf)) continue;
+
+                /* 交点 x 坐标；分母加 eps 防水平边除零 */
+                const float t = (pyf - yi) / (yj - yi + 1e-12f);
+                const float x_cross = xi + t * (xj - xi);
+                if (pxf < x_cross) ++crossings;
+            }
+            /* 奇数 = 多边形内部 = 车身遮挡 */
+            row[px] = (nf_u8)(crossings & 1u);
+        }
+    }
+    return NF_OK;
+}
+
 } /* extern "C" */

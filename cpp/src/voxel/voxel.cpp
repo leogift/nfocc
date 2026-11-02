@@ -331,4 +331,178 @@ NFStatus nf_voxel_export_points(const NFVoxelCtx *ctx, NFPointCloud *pc) {
     return pc->overflow ? NF_E_OUTPUT_OVERFLOW : NF_OK;
 }
 
+/* ==================== REV-001: 带不确定度的插入 ==================== */
+
+NFStatus nf_voxel_insert_with_sigma(NFVoxelCtx *ctx,
+                                    nf_f32 x, nf_f32 y, nf_f32 z,
+                                    nf_f32 conf, nf_u8 source_bit,
+                                    nf_u8 sigma_cm) {
+    if (!ctx) return NF_E_PARAM_NULL;
+
+    /* 先走普通插入（质心/计数/来源），拿到条目后再补 sigma */
+    const NFStatus st = nf_voxel_insert(ctx, x, y, z, conf, source_bit);
+    if (st != NF_OK) return st;
+
+    nf_i32 ix, iy, iz;
+    nf_u8 inside = 0;
+    nf_voxel_index(&ctx->g, x, y, z, &ix, &iy, &iz, &inside);
+    if (!inside) return NF_OK;
+
+    const nf_u32 h = hash_of(ix, iy, iz);
+    /* 哨兵 255 收敛到 254，便于取 min 时不被"不可知"主导 */
+    const nf_u8 sig = (sigma_cm == 255u) ? 254u : sigma_cm;
+
+    for (nf_u32 i = 0; i < ctx->capacity; ++i) {
+        const nf_u32 s = probe(h, i, ctx->capacity);
+        NFVoxelEntry *e = &ctx->slots[s];
+        if (!e->used) break;
+        if (e->hash != h) continue;
+        /* **取最小**：多次观测里只要有一次特别准，位置就该按准的算。
+         * 用平均会让一次劣质观测拖累整体精度。 */
+        if (sig < e->sigma_cm) e->sigma_cm = sig;
+        return NF_OK;
+    }
+    return NF_OK;
+}
+
+/* ==================== REV-001: D4 双基线交叉验证 ==================== */
+
+NFStatus nf_voxel_verify_cross(NFVoxelCtx *ctx,
+                               nf_f32 x, nf_f32 y, nf_f32 z,
+                               nf_u8 source_bit, nf_f32 thresh_mm,
+                               nf_u8 *out_verdict) {
+    if (!ctx) return NF_E_PARAM_NULL;
+    if (out_verdict) *out_verdict = 0u;
+
+    const nf_f32 th = (thresh_mm > 0.0f) ? thresh_mm : 50.0f;
+
+    nf_i32 ix, iy, iz;
+    nf_u8 inside = 0;
+    nf_voxel_index(&ctx->g, x, y, z, &ix, &iy, &iz, &inside);
+    if (!inside) return NF_OK;
+
+    const nf_u32 h = hash_of(ix, iy, iz);
+
+    for (nf_u32 i = 0; i < ctx->capacity; ++i) {
+        const nf_u32 s = probe(h, i, ctx->capacity);
+        NFVoxelEntry *e = &ctx->slots[s];
+        if (!e->used) return NF_OK;          /* 没有主观测可比，直接返回 */
+        if (e->hash != h) continue;
+
+        const nf_f32 dx = e->cx - x, dy = e->cy - y, dz = e->cz - z;
+        const nf_f32 d2 = dx * dx + dy * dy + dz * dz;
+        const nf_f32 th2 = th * th;
+
+        if (d2 <= th2) {
+            /* 通过：融合质心 */
+            e->cx = 0.5f * (e->cx + x);
+            e->cy = 0.5f * (e->cy + y);
+            e->cz = 0.5f * (e->cz + z);
+            /* 方差减半用 sqrt(2)，不是 2（见头文件说明） */
+            nf_f32 sg = (nf_f32)e->sigma_cm / 1.41421356f;
+            sg += 0.5f;
+            if (sg < 1.0f) sg = 1.0f;
+            if (sg > 254.0f) sg = 254.0f;
+            e->sigma_cm = (nf_u8)sg;
+            e->source_mask |= source_bit;
+            if (out_verdict) *out_verdict = 1u;
+            return NF_OK;
+        }
+
+        /* 超限：大幅削弱权重，低到一定程度物理释放 */
+        e->n_eff *= 0.2f;
+        if (e->n_eff < 0.2f) {
+            e->used = 0;
+            if (ctx->count > 0) --ctx->count;
+        }
+        if (out_verdict) *out_verdict = 0u;
+        return NF_OK;
+    }
+    return NF_OK;
+}
+
+/* ==================== REV-002: 柱体连续排布 ==================== */
+
+NFStatus nf_voxel_transform_columnar(const NFVoxelCtx *ctx,
+                                     NFGridOutput *out,
+                                     NFPointCloud *pc) {
+    if (!ctx || !out || !pc) return NF_E_PARAM_NULL;
+
+    /* 第 1 遍：建 zmap + zindex（复用现有实现，保证口径一致） */
+    const NFStatus st = nf_grid_flatten(ctx, out);
+    if (st != NF_OK) return st;
+
+    const nf_u32 n_cells = ctx->g.nx * ctx->g.ny;
+    const nf_u32 total = out->zindex[n_cells];
+    if (total == 0) { pc->num_points = 0; return NF_OK; }
+
+    /* 点云缓冲不足 -> 只填能放下的，但**必须按 col 顺序截断**，
+     * 不能像按哈希顺序导出那样随便丢中间的点，否则 O(1) 索引错位。 */
+    const nf_u32 cap = (pc->max_points < total) ? pc->max_points : total;
+
+    /* 第 2 遍：按 col 递增、col 内按 iz 升序填点。
+     *
+     * 朴素的"对每个 col 再扫一遍哈希表"是 O(n_cells * capacity)，
+     * 网格 90x75=6750、容量 262144 时约 1.7e9 次 —— 不可接受。
+     *
+     * 改用**计数排序**：先统计每个 (col,iz) 槽位的写入位置，
+     * 再一遍扫描哈希表把点放到它该在的位置。
+     */
+    /* cursor[col] = 该柱下一个待填的下标。
+     * **不用 std::vector** —— 核心库编译带 -fno-exceptions，
+     * 且运行期不应依赖 STL 容器（跨平台/嵌入式一致性）。
+     * 该缓冲由调用方 FramePool 之外的临时分配承担，见注释。 */
+    nf_u32 *cursor = (nf_u32 *)std::malloc((size_t)n_cells * sizeof(nf_u32));
+    if (!cursor) return NF_E_ENGINE_OOM;
+    for (nf_u32 c = 0; c < n_cells; ++c) cursor[c] = out->zindex[c];
+
+    /* 按 iz 升序填充：外层遍历 iz，内层扫描哈希表。
+     * 这样同一 col 内自然按 iz 递增，且每层只扫一遍哈希表 ——
+     * 总计 O(nz * capacity)，nz=15、capacity=262144 约 4e6 次，可接受。 */
+    nf_u32 written = 0;
+    for (nf_i32 iz = 0; iz < (nf_i32)ctx->g.nz && written < cap; ++iz) {
+        for (nf_u32 s = 0; s < ctx->capacity; ++s) {
+            const NFVoxelEntry *e = &ctx->slots[s];
+            if (!e->used || e->iz != iz) continue;
+            if (e->ix < 0 || e->ix >= (nf_i32)ctx->g.nx) continue;
+            if (e->iy < 0 || e->iy >= (nf_i32)ctx->g.ny) continue;
+
+            const nf_u32 col = (nf_u32)e->iy * ctx->g.nx + (nf_u32)e->ix;
+            const nf_u32 pos = cursor[col];
+            /* 超容量时停止写入，但不动 cursor —— 保证已写部分仍连续 */
+            if (pos >= cap) continue;
+            if (pos >= out->zindex[col + 1]) continue;   /* 该柱已填满 */
+
+            NFPoint *pt = &pc->points[pos];
+            pt->x_mm = (nf_i32)(e->cx >= 0.0f ? e->cx + 0.5f : e->cx - 0.5f);
+            pt->y_mm = (nf_i32)(e->cy >= 0.0f ? e->cy + 0.5f : e->cy - 0.5f);
+            pt->z_mm = (nf_i32)(e->cz >= 0.0f ? e->cz + 0.5f : e->cz - 0.5f);
+            pt->source_camera = e->source_mask;
+            pt->sigma_cm = e->sigma_cm;
+            pt->existence_prob = (nf_u8)(e->n_eff > 0.0f
+                                     ? (e->n_eff > 1.0f ? 100.0f : e->n_eff * 100.0f)
+                                     : 0.0f);
+            cursor[col] = pos + 1u;
+            ++written;
+        }
+    }
+
+    pc->num_points = written;
+
+    /* 若因容量不足被截断，zindex 必须跟着修正，
+     * 否则下游按 zindex 访问会读到未写入的槽（脏数据）。 */
+    if (written < total) {
+        nf_u32 acc = 0;
+        out->zindex[0] = 0;
+        for (nf_u32 c = 0; c < n_cells; ++c) {
+            const nf_u32 filled = cursor[c] - out->zindex[c];
+            acc += filled;
+            out->zindex[c + 1] = acc;
+        }
+    }
+
+    std::free(cursor);
+    return NF_OK;
+}
+
 } /* extern "C" */

@@ -67,6 +67,14 @@ typedef struct {
     nf_f32 n_eff;           /**< 有效观测计数(置信度加权) */
     nf_u8  source_mask;     /**< bit0=FV .. bit3=MR */
     nf_u8  used;
+    /**
+     * 空间不确定度 (cm)。1..254 有效，255 = 哨兵（不可知）。
+     *
+     * 由 `nf_compute_spatial_uncertainty_cm` 逐点算出，CMA 聚合时取
+     * **最小**（观测越多越确定）。D4 交叉验证通过后可再减半。
+     */
+    nf_u8  sigma_cm;
+    nf_u8  _pad_sigma[3];
 } NFVoxelEntry;
 
 /** 体素表上下文(不透明) */
@@ -97,6 +105,52 @@ void     nf_voxel_clear(NFVoxelCtx *ctx);
  */
 NFStatus nf_voxel_insert(NFVoxelCtx *ctx, nf_f32 x, nf_f32 y, nf_f32 z,
                          nf_f32 conf, nf_u8 source_bit);
+
+/**
+ * 带空间不确定度的插入（REV-001）。
+ *
+ * 与 `nf_voxel_insert` 的区别：额外携带 `sigma_cm`，CMA 聚合时按
+ * **最小不确定度**聚合（不是平均）—— 多次观测里只要有一次特别准，
+ * 该体素的位置就该按准的那次算。
+ *
+ * @param sigma_cm  [1,254]，传 255 表示不可知（内部按 254 处理）
+ */
+NFStatus nf_voxel_insert_with_sigma(NFVoxelCtx *ctx,
+                                    nf_f32 x, nf_f32 y, nf_f32 z,
+                                    nf_f32 conf, nf_u8 source_bit,
+                                    nf_u8 sigma_cm);
+
+/**
+ * D4: 双基线交叉验证。
+ *
+ * 用另一条基线再算一次同一体素，得到 P2。与已有的 P1 比：
+ *
+ * ```
+ * delta2 = |P1 - P2|^2
+ * delta2 <= thresh_mm^2  ->  融合 P = (P1+P2)/2
+ *                            sigma_cm <- max(1, round(sigma_cm / sqrt(2)))
+ * delta2 >  thresh_mm^2  ->  判定为动态干扰/假阳性
+ *                            n_eff <- n_eff * 0.2
+ *                            n_eff < 0.2 时物理释放该体素
+ * ```
+ *
+ * ## 为什么 sigma 除以 sqrt(2) 而不是 2
+ * 两次独立等精度观测的信息融合：
+ *   `1/sigma^2 = 1/sigma1^2 + 1/sigma2^2`
+ * 等方差时 `sigma = sigma1/sqrt(2)`。
+ * 原规范写 `sigma >>= 1`（除以 2）比统计最优更乐观，
+ * 会低估不确定度，故此处用 sqrt(2)。
+ *
+ * @param ctx        体素表
+ * @param x,y,z      第二基线的物点 (mm)
+ * @param source_bit 来源相机位
+ * @param thresh_mm  空间检验门限 (mm)，默认 50
+ * @param out_verdict 可为 nullptr。0=超限剔除, 1=通过并融合
+ */
+NFStatus nf_voxel_verify_cross(NFVoxelCtx *ctx,
+                               nf_f32 x, nf_f32 y, nf_f32 z,
+                               nf_u8 source_bit, nf_f32 thresh_mm,
+                               nf_u8 *out_verdict);
 
 /** 体素表统计 */
 NFStatus nf_voxel_stats(const NFVoxelCtx *ctx, nf_u32 *num_entries,
@@ -133,6 +187,37 @@ void     nf_pointcloud_destroy(NFPointCloud *pc);
 
 /** 体素表 -> 点云。超 max_points 时按存在概率截断 */
 NFStatus nf_voxel_export_points(const NFVoxelCtx *ctx, NFPointCloud *pc);
+
+/**
+ * 体素表 -> **按柱体连续排布**的点云 + 高程压缩（REV-002）。
+ *
+ * ## 与 nf_voxel_export_points 的区别
+ * 后者按哈希槽顺序导出，下游要查某个地表格子还得遍历。
+ * 本函数保证：
+ *   1. 点严格按 `col = iy*nx + ix` **递增**排列
+ *   2. 同一 `col` 内按 `iz` **升序**排列
+ *   3. `zindex[col]` / `zindex[col+1]` 正好是该柱点的起止下标
+ *
+ * ## O(1) 访问定理
+ * 下游查地表网格 (ix, iy) 上的所有障碍点：
+ * ```
+ * col   = iy*nx + ix
+ * start = zindex[col];
+ * end   = zindex[col+1];
+ * // 点就在 points[start .. end-1]，无需哈希查找
+ * ```
+ *
+ * ## 前提（不满足则定理失效）
+ * 输出顺序必须与 zindex 的构建顺序**完全一致**。
+ * 本函数内部先建 zindex 再按 col 递增填点，故自洽。
+ *
+ * @param ctx  体素表
+ * @param out  已分配 zmap/zindex 的 NFGridOutput（n_cells 必须 = nx*ny）
+ * @param pc   已分配的点云缓冲；不够时按存在概率截断
+ */
+NFStatus nf_voxel_transform_columnar(const NFVoxelCtx *ctx,
+                                     NFGridOutput *out,
+                                     NFPointCloud *pc);
 
 #ifdef __cplusplus
 } /* extern "C" */

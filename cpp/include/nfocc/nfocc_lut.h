@@ -130,6 +130,36 @@ NFStatus nf_lut_build(NFViewLut *lut, const NFCameraModel *cam,
                       const nf_u8 *mask, NFLutStats *stats);
 
 /**
+ * D1: 车身轮廓多边形 -> 视口掩码（射线交叉法光栅化，REV-002）。
+ *
+ * 车身上的反光、车标、保险杠会在点云里造出一层"贴着车体的假障碍"。
+ * 与其在三角化后剔除，不如在 LUT 构建时就把这些像素判为无效 ——
+ * 源头掐灭，下游一点代价都不付。
+ *
+ * ## 坐标系（易错点）
+ * 多边形顶点与查询点必须**统一在虚拟视口图像坐标系**
+ * （即 LUT 的像素坐标，原点在视口左上角，x 右 y 下），
+ * **不是车体系**。传车系坐标会让掩码整体错位。
+ *
+ * ## 算法（射线交叉法）
+ * 从查询点向右发水平射线，统计与多边形边的交叉次数：
+ * ```
+ * intersect = ((y_i > p_y) != (y_j > p_y)) &&
+ *             (p_x < (x_j-x_i)*(p_y-y_i)/(y_j-y_i+eps) + x_i)
+ * ```
+ * 奇数 -> 在多边形内 -> mask 置 1（遮挡）。
+ *
+ * @param mask    输出掩码 [w*h]，1 = 车身遮挡
+ * @param w,h     视口尺寸
+ * @param poly_x  顶点 x 数组（视口像素坐标）
+ * @param poly_y  顶点 y 数组
+ * @param n_pts   顶点数（>=3）
+ */
+NFStatus nf_mask_rasterize_polygon(nf_u8 *mask, nf_u32 w, nf_u32 h,
+                                   const nf_f32 *poly_x, const nf_f32 *poly_y,
+                                   nf_u32 n_pts);
+
+/**
  * 按 LUT 把原图重采样到视口。
  * 双线性, **无效邻域不参与权重**(不按 0 处理 —— 否则边缘会出现假梯度,
  * SGBM 会把它当纹理去匹配)。
