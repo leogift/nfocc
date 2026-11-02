@@ -166,6 +166,48 @@ cd "$ROOT" || exit 1
 [ -n "$(git check-ignore cpp/build/x 2>/dev/null)" ] && ok "build/ 忽略" yes || bad build/ no
 [ -n "$(git check-ignore datasets/fisheye/x 2>/dev/null)" ] && ok "datasets/ 忽略" yes || bad datasets/ no
 
+echo "[9] 架构报告构建（build_arch_report.py）"
+python3 "$ROOT/tools/build_arch_report.py" >"$TMPD/rep.log" 2>&1 \
+  && ok 构建 exit0 || bad 构建 "$(tail -3 "$TMPD/rep.log")"
+# 逐条判据在 HTML 上断言，不看 PDF 观感
+# PDF 文本层检查需要 pymupdf，装在系统 python 里；
+# $PY 是装了 PIL/numpy 的 venv，两者不要混用。
+if "${PY_PDF:-/usr/bin/python3}" - "$ROOT" <<'PYEOF'
+import re, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+rep = root / "docs" / "report"
+doc = (rep / "ARCH-REPORT.html").read_text(encoding="utf-8")
+pdf = next(rep.glob("*.pdf"))
+fails = []
+# 图数: 3 SVG 内联 + 4 PNG data-URI
+if len(re.findall(r"<svg ", doc)) != 3: fails.append("svg != 3")
+if doc.count("data:image/png;base64,") != 4: fails.append("png != 4")
+# 相对路径图会让 Chromium 静默丢图
+if re.search(r'<img[^>]+src="(?!data:)', doc): fails.append("相对路径 img")
+# 泄漏检测 + 负对照（证明判据可失败）
+LEAK = re.compile(r"<p>\s*(?:FIG_|SHOT_)[A-Z_]*\s*</p>")
+if LEAK.findall(doc): fails.append("占位符泄漏")
+if not LEAK.search("<p>FIG_ARCH</p>"): fails.append("泄漏判据恒假")
+if LEAK.search('<img alt="SHOT_Y" src="data:image/png;base64,x"/>'):
+    fails.append("误报 alt 属性")
+# PDF 文本层: 图内文字必须可选中（证明是矢量而非栅格）
+try:
+    import fitz
+except ImportError:
+    print("skip: 无 pymupdf"); sys.exit(0)
+txt = "".join(pg.get_text() for pg in fitz.open(pdf))
+if sum(t in txt for t in ("接入层", "几何与视口层", "FROZEN_ROT", "融合去重")) < 3:
+    fails.append("图内文字未进文本层")
+if "NFORM" in txt or "NFXX" in txt: fails.append("PDF 有旧名")
+print("; ".join(fails) if fails else "ok")
+sys.exit(1 if fails else 0)
+PYEOF
+then ok 报告判据 图数/无相对路径/无泄漏/矢量文字/无旧名
+else bad 报告判据 "见上"; fi
+# 自证伪钩子：NF_CANARY=1 时必须让本段判失败，否则"通过"不可信
+[ -n "${NF_CANARY:-}" ] && bad "canary(故意)" "本段可失败"
+
 echo
 echo "失败 $fail 项"
 [ "$fail" -eq 0 ] || exit 1
