@@ -1,5 +1,8 @@
 # SPEC-MASK — 车身 ROI 掩码（源头剔除）
 
+> **状态：已实现并接入** —— `nf_mask_rasterize_polygon` + `nf_mask_build_vehicle`（`src/lut/view_lut.cpp`）。
+> 当前用 5000×2000 矩形占位，实车轮廓数据到位后替换多边形即可。
+
 补齐审计缺口 **G-3**。本文档定义：车身掩码是什么坐标系下的什么数据结构、怎么标定、
 在 LUT 的哪一步生效、以及它带来的副作用怎么处理。
 

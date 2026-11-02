@@ -7,8 +7,12 @@
 
 ## 一、三份文档的合入状态
 
-对 `2_SPEC-ALGORITHM-DERIVATION.md` / `3_REFACTOR-REPRODUCTION-GUIDE.md` /
-`4_REFACTOR-LOG-ACTIONS.md` 逐条比对代码，结论：**核心算法全部落地，
+> **审计对象已删除**（2026-11-02）：被审计的三份外部方案文档已移除。
+> 本文的**代码审计结论**仍然有效（可作为"当时哪些落地了"的存档），
+> 但无法再对照原文复核。
+
+对 2_SPEC-ALGORITHM-DERIVATION.md / 3_REFACTOR-REPRODUCTION-GUIDE.md /
+4_REFACTOR-LOG-ACTIONS.md 逐条比对代码，结论：**核心算法全部落地，
 4 项未接线。**
 
 ### 1.1 算法规范（2_SPEC）逐章

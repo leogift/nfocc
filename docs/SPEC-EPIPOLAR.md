@@ -175,7 +175,8 @@ R' = [x'; y'; z']  (行)                       (2.4)
 >   \;\Longrightarrow\;
 >   [\,\mathbf{r}_0\;\; -\mathbf{r}_1\,]\begin{bmatrix}s_0\\ s_1\end{bmatrix} = \mathbf{t}$$
 >
-> 实现见 `nfocc_ph1/triangulate.py::triangulate_rays`，实测闭合误差 1.4e-12。
+> 实现见 `cpp/src/geometry/geometry.cpp` 的 `nf_triangulate_rays`。
+> （Python 原型 `nfocc_ph1` 已删除，数值验证迁移到 C++ 单测。）
 > **(4.1) 仅作量级估计，不得用于生产路径。**
 
 侧向平移（`|t_perp|/|t|` 接近 1）且极线已对齐时，(4.1) 可作快速近似：

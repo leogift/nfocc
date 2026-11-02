@@ -1,5 +1,8 @@
 # SPEC-OCCLUSION — 双向光流遮挡检测
 
+> **状态：函数已实现，主链未接入** —— `nf_occlusion_weight` 在 `pipeline.cpp` 中 0 处调用。
+> 接入方案见 `PLAN-DEFENSE-INTEGRATION.md`。
+
 补齐审计缺口 **G-4**。本文档定义：在什么图上算光流、判据式的确切形式、
 `nOcclusion` 怎么起作用、以及与引擎置信度的合成顺序。
 

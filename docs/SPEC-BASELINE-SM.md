@@ -1,5 +1,8 @@
 # SPEC-BASELINE-SM — 基线状态机（状态表 + 迁移 + 输出契约）
 
+> **状态：状态机已实现并测通，主链未接入** —— `test_d4_baseline` 6/6 通过；
+> `pipeline.cpp` 仍用旧的 `nf_gate_decide`。里程计降级方案见 `nfocc_odom.h`。
+
 本文档是 `NFBaselineInput` / `NFBaselineOutput` 的**唯一定义处**，也是状态机的唯一规范。
 视差量级与分档的算术依据见 `SPEC-EPIPOLAR` §4.2；参数值见 `PARAM.md` 的 B 节（`B_MIN`/`B_MAX`/`B_TARGET`/`B_OMEGA`/`B_DT_MAX`/`B_LAT_MAX`/`B_ZMIN_EFF`）。
 

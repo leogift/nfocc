@@ -1,5 +1,9 @@
 # SPEC-POSE — 位姿接入规范（轮速/IMU → NFPose）
 
+> **状态：降级方案已实现** —— `nfocc_odom`（speed + yaw_rate 积分）。
+> **无 IMU 通路**：接口留了 `nf_odom_push_pose` 供外部注入真位姿。
+> 打滑时轮速不可信，产品必须接真实定位。
+
 补齐审计缺口 **G-6**。本文档定义：位姿从哪来、怎么变成 `NFPose`、误差怎么进基线。
 坐标系与矩阵约定见 `SPEC-COORD.md`，状态机见 `SPEC-BASELINE-SM.md`。
 

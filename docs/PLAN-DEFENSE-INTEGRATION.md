@@ -12,7 +12,7 @@
 
 | 防御 | 真实状态 | 位置 |
 |---|---|---|
-| D1 车身掩码 | **已接线** | `pipeline.cpp:214` 把 `cfg.body_mask` 传给 `nf_lut_build` |
+| D1 车身掩码 | **已接线（全链路）** | `nf_mask_build_vehicle` 生成掩码 → `nfocc_run` 填 `cfg.body_mask[4]` → `pipeline.cpp:214` 传给 `nf_lut_build` |
 | D3 FoE 锥 | **已接线** | `pipeline.cpp:526`、`:692` 两处调用 `nf_pt_in_foe` |
 | σ 传播 | **已接线** | `nf_compute_spatial_uncertainty_cm` 2 处 |
 | σ 落库 | **已接线** | `nf_voxel_insert_with_sigma` 2 处 |
@@ -20,7 +20,12 @@
 | D4 交叉验证 | **函数在，主链无调用** | `nf_voxel_verify_cross` 0 处 |
 | 双基线状态机 | **类在，主链无调用** | `nf_baseline_manager_*` 0 处 |
 
-所以真正待接入的是 **D2、D4、双基线**三项。D1/D3 缺的不是代码，是**配置数据**。
+所以真正待接入的是 **D2、D4、双基线**三项。
+
+（2026-11-02 更新：D1 已补全。`nf_mask_build_vehicle` 用 5000×2000 矩形
+占位生成掩码，实车轮廓数据到位后替换多边形即可。实测覆盖 cam0 0.1%、
+cam1 22.9%、cam2 76.6%、cam3 77.3%；负对照下点数 661 → 195。
+D4/双基线所需的外部支持见 §三。）
 
 ---
 

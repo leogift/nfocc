@@ -49,7 +49,8 @@ $$\boxed{Z = \frac{\sum \big[(\hat{\mathbf{u}}_i \times \hat{\mathbf{v}}_i)\cdot
 | **F-2** | 系统偏差 194 mm | 输入用**像素**而非**方向向量**。视口的 `v` 定义成"相对环带中轴的仰角"，与标准针孔 `f·y/z` 差 **208 px**（实测） |
 | **F-3** | 结果恒定不随噪声变化 | 判据函数没用扰动值；掩码含 `den>ε` 导致各档筛出不同子集，统计不可比 |
 
-**因此 API 强制接收方向向量**，见 `nfocc_ph1/forward_range.py::forward_range_from_rays`。
+**因此 API 强制接收方向向量**，见 `cpp/src/geometry/geometry.cpp` 的
+`nf_forward_range`（头文件 `nfocc/nfocc_geometry.h`）。
 
 ---
 
@@ -85,7 +86,7 @@ $$\sigma = \frac{|\mathbf{t}_{\perp}|}{|\mathbf{t}|},
 | `σ ≤ SIGMA_FORWARD_MAX`（0.35） | `FORWARD` | 前向，走 (2.1) |
 | 中间 | `HYBRID` | 两条路都跑，按置信度融合 |
 
-实现：`nfocc_ph1/gating.py::decide`。
+实现：`nf_gate_decide`（`cpp/src/geometry/geometry.cpp`）。
 
 **冻结时不产出点云**（`points is None`），不是产出空点云 ——
 下游必须能区分"这帧没结果"与"这帧确实没障碍物"。
@@ -112,12 +113,12 @@ t_cam.x > 0  ->  u₂ = u − d
 
 合成数据里若用逐像素随机噪声，同一物点在两帧灰度不同（实测 192 vs 196），
 SGBM 输出与真值完全不相关（真值 133 px，输出 3.6 px）。
-**仿真器要求**：纹理 = `f(x, y, z)`，无随机项。见 `nfocc_ph1/product.py::deterministic_texture`。
+**仿真器要求**：纹理 = `f(x, y, z)`，无随机项。见 `nfocc_scene_render`（`cpp/src/geometry/scene_render.cpp`）。
 
 ### 5.3 已知残余误差与分块实测结论
 
 侧向整幅匹配仍有 9–77 px 误差（极线不平行所致）。
-分块剪切校正（`nfocc_ph1/blockmatch.py`）已实现并实测，**结论是不划算，默认关闭**：
+分块剪切校正曾实测，**结论是不划算，默认关闭**（C++ 侧未实现，仅保留结论）：
 
 | 方法 | 有效比例 | 视差误差中位 | 深度误差中位 |
 |---|---|---|---|
@@ -142,7 +143,7 @@ SGBM 输出与真值完全不相关（真值 133 px，输出 3.6 px）。
 ## 6. 验收
 
 ```bash
-python3 -m nfocc_ph1.selftest
+cd cpp && ./build/host/tests/test_geometry
 ```
 
 | 编号 | 判据 | 期望 |

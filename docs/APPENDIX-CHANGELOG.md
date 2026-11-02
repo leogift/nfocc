@@ -4,6 +4,39 @@
 
 ---
 
+## v0.2 — 同步工程现状（2026-11-02）
+
+### 删除的文档（过时或对象已不存在）
+
+| 文档 | 理由 |
+|---|---|
+| PH1-ACCEPTANCE.md | 验收对象是已删除的 Python 原型 nfocc_ph1 |
+| PROJECT-STATUS.md | 停在 11-01，被 ROADMAP.md 取代 |
+| PLAN-CLUSTERING.md | 调研稿，被 CLUSTERING-IMPLEMENTATION.md（落地结果）取代 |
+
+### 正文修正
+
+- **README.md 全量重写**：原索引里有 5 条已删文档、`2a` 编号重复两次；
+  "已定约束"表与代码不符（写 1920x1536 / KB 鱼眼 / 190° FOV，
+  实际是 1280x966 / radial_poly / 视口分两档）。新增"已知未达标"表。
+- **SPEC-EPIPOLAR / SPEC-FORWARD**：指向已删除 Python 原型的实现引用
+  改为指向 C++ 实际函数（nf_triangulate_rays / nf_forward_range / nf_gate_decide）。
+- **REV-001-002 / VALIDATION-REPORT**：加"来源文档已删除"说明，
+  正文保留为历史记录（结论有效，但无法回查依据）。
+- **PLAN-DEFENSE-INTEGRATION**：D1 从"已接线"更正为"全链路"（补上
+  nf_mask_build_vehicle 生成掩码这一层）。
+- **新增 5 篇状态行**：SPEC-MASK / SPEC-OCCLUSION / SPEC-BASELINE-SM /
+  SPEC-FOE / SPEC-POSE 各自标明"已接入/未接入"。
+- **notes/00-nfocc-understanding.md**：加删除说明。
+
+### 删除清单的写法约定
+
+"已删除"表格里的文件名**不加反引号**。`tools/docs_check.py` 的 D1 判据
+会把反引号里的 `.md` 当作引用并校验存在性 —— 加反引号会让已删文档
+再次触发"引用不存在"。这是写删除记录时的固定格式。
+
+---
+
 ## v0.1 — 首版（基于用户四条答复）
 
 ### 用户拍板的约束（本轮新增）

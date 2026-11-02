@@ -1,5 +1,9 @@
 # NFOCC 需求 / 架构理解框架
 
+> **2026-11-02**：本文引用的外部方案文档（1_NFOCC待办.txt、
+> 2_SPEC-ALGORITHM-DERIVATION.md 等）与 Python 原型 nfocc_ph0/nfocc_ph1
+> 均已删除。以下内容保留为当时的理解记录，代码现状见 docs/README.md。
+
 来源：`doc/1_NFOCC技术架构报告.md`、`doc/2_NFOCC工程化方案.md`、`doc/3_NFOCC实施方案.md`。
 这份文件只记录"文档说了什么、我判断哪里成立/哪里不成立"，不重复文档原文。
 数字核算见 `01-numcheck.md`，外部调研见 `02-external-facts.md`。
