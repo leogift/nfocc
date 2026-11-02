@@ -22,6 +22,7 @@
 | 1e | `4_REFACTOR-LOG-ACTIONS.md` | REV-001/REV-002 修改记录 |
 | 2a | `VALIDATION-REPORT.md` | 三份文档合入审计 + 真实数据各阶段验证 |
 | 2b | `report/ARCH-REPORT.md` | 架构/Pipeline/流程解析（PDF: `report/NFOCC-架构与流程解析.pdf`） |
+| 2c | `DECISION-DEPTH-ACCURACY.md` | **精度目标决策**：150°/1024, 5-15km/h, 参数与实测 |
 | 1 | `SPEC-COORD.md` | 点、向量、矩阵、旋转到底怎么定义？谁是谁的转置？ |
 | 2 | `SPEC-CAMERA.md` | 4 路鱼眼的内参模型（KB）、图像格式、有效像素区 |
 | 2a | `SPEC-CALIB-CFG.md` | 相机内外参配置文件格式与默认值（f=550、车 5000×2000） |

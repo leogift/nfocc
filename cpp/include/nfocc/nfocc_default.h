@@ -30,7 +30,17 @@
 #define NF_V_REORIENT_EPS      1e-3f
 #define NF_V_RING_EL_MIN_DEG   10.0f    /* 视口环带下界 */
 #define NF_V_RING_EL_MAX_DEG   60.0f    /* 视口环带上界 */
-#define NF_V_VIEW_W            960      /* 降采样后视口宽 (E_DOWNSCALE=2) */
+/**
+ * 视口宽度 (px)。水平张角 150° 固定，故 f = (W/2)/tan(75°)。
+ *
+ * W=1024 -> f=137.2 px/rad，源图角分辨率约 340 px/rad，视口为其 0.40×。
+ * 这个取值由精度需求反解确定（见 docs/DECISION-DEPTH-ACCURACY.md）：
+ * 5 m 处中位 150 mm 需要 f·b 足够大，1024 已把 f 抬到 640 的 1.6 倍。
+ *
+ * **再往上加收益递减**：要到源图极限需 W≈2560，计算量约 5 倍，
+ * 超出 200 ms 时间片，故停在 1024。
+ */
+#define NF_V_VIEW_W            1024
 #define NF_V_VIEW_H            258
 /* 虚拟视锥水平张角 (deg)。
  *
@@ -55,13 +65,27 @@
  *   => 每帧位移 200 mm, 这就是最短可用基线。
  * 原值 12mm 是旧参数(未考虑车速)下的数, 会得到 <0.1px 的视差, 无法三角化。
  * 基线下限抬到 200mm 后, 深度量化误差显著下降(见 PARAM B.1)。 */
-#define NF_B_MIN               200.0f  /* mm = 车速下限 1m/s ÷ 5Hz */
+/**
+ * 基线下限 = 5 km/h (1.389 m/s) ÷ 5 Hz = 278 mm。
+ *
+ * 决策依据：支持 5–15 km/h 车速区间（用户定），下限对应最慢车速。
+ * 低于此值视差不足，宁可冻结也不出低质量点。
+ */
+#define NF_B_MIN               278.0f
 /* B_MAX 受**引擎容量**约束: d_max = VF_VIEW·b/Z_MIN ≤ numDisparities
  *   b_max = numDisp·Z_MIN/VF_VIEW = 256×500/277.13 = 461.9 mm
  * 取 460 留余量。原 233 是按旧 B_MIN 算的, 已作废。 */
-#define NF_B_MAX               460.0f   /* mm, 上限 (numDisp 容量反推) */
+/**
+ * 基线上限 = 15 km/h (4.167 m/s) ÷ 5 Hz = 833 mm。
+ *
+ * 容量校验: numDisp 256、Z_MIN_EFF 500 -> B_MAX ≤ 256*500/137.2 = 933，
+ * 833 在容量内。注意 0.5 m 处视差会到 229 px，SGBM 成本显著上升
+ * （实测见 docs/DECISION-DEPTH-ACCURACY.md）。
+ */
+#define NF_B_MAX               833.0f
 /* 期望基线: 200~460 的几何中位, 兼顾精度与状态机滞后 */
-#define NF_B_TARGET            300.0f   /* mm */
+/* 长基线触发目标：取 5–15 km/h 区间的中段，约 9 km/h */
+#define NF_B_TARGET            500.0f
 #define NF_B_OMEGA_DEG         12.0f    /* deg/s, 纯旋转判据 */
 #define NF_B_DT_MAX_MS         5.0f     /* 位姿与图像允许失步 */
 #define NF_B_LAT_MAX_MS        50.0f

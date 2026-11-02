@@ -126,13 +126,15 @@ NF_TEST(gate_frozen) {
     NF_CHECK_EQ_INT(d.mode, NF_MODE_FROZEN_NEAR);
     NF_CHECK_EQ_INT(nf_mode_produces_depth(d.mode), 0);
 
-    const float t_big[3] = { 0.0f, 0.0f, 600.0f };    /* > B_MAX=460 */
+    /* 由常量派生，别写死具体毫米数 —— B_MAX 随车速区间决策变过两次 */
+    const float t_big[3] = { 0.0f, 0.0f, NF_B_MAX * 1.5f };
     nf_gate_decide(t_big, 1, NF_B_MIN, NF_B_MAX, NF_SIGMA_STEREO_MIN,
                    NF_SIGMA_FORWARD_MAX, NF_GAP_MAX_FRAMES, &d);
     NF_CHECK_EQ_INT(d.mode, NF_MODE_FROZEN_FAR);
     NF_CHECK_EQ_INT(nf_mode_produces_depth(d.mode), 0);
 
-    const float t_ok[3] = { 300.0f, 0.0f, 0.0f };
+    /* 取 b_min 的 1.2 倍，保证在 [b_min, b_max] 内 */
+    const float t_ok[3] = { NF_B_MIN * 1.2f, 0.0f, 0.0f };
     nf_gate_decide(t_ok, 5, NF_B_MIN, NF_B_MAX, NF_SIGMA_STEREO_MIN,
                    NF_SIGMA_FORWARD_MAX, NF_GAP_MAX_FRAMES, &d);
     NF_CHECK_EQ_INT(d.mode, NF_MODE_FROZEN_GAP);

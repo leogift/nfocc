@@ -302,7 +302,9 @@ int main(int argc, char **argv) {
             std::printf("标定缺少图像尺寸\n");
             return 1;
         }
-        const nf_u32 vw = rw / (nf_u32)NF_E_DOWNSCALE;
+        /* 视口宽用常量 NF_V_VIEW_W（1024），不再按 rw/2 降到 640 ——
+         * 那会让 f 掉到 85.7，5m 精度直接不达标。源图 1280 > 1024 仍够采样。 */
+        const nf_u32 vw = (rw < (nf_u32)NF_V_VIEW_W) ? rw : (nf_u32)NF_V_VIEW_W;
         NFViewParams vp2;
         if (nf_view_params_derive_fov(&vp2, vw, hfov_deg,
                                       NF_V_VIEW_VFOV_DEG) == NF_OK) {

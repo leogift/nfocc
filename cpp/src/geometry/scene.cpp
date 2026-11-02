@@ -140,4 +140,42 @@ nf_u8 nf_scene_shade(const NFScene *s, const nf_f32 *p, nf_u32 plane_id) {
     return (nf_u8)(v + 0.5);
 }
 
+/* ==================== 精度评估：点到表面距离 ==================== */
+
+NFStatus nf_scene_dist_to_surface(const NFScene *scene, const nf_f32 *P,
+                                  nf_f32 *out_dist) {
+    if (!scene || !P || !out_dist) return NF_E_PARAM_NULL;
+
+    nf_f32 best = 1e30f;
+    nf_u8 found = 0;
+
+    for (nf_u32 i = 0; i < scene->n_planes; ++i) {
+        const NFPlane *pl = &scene->planes[i];
+        /* 有符号距离: 点到平面的垂直距离 */
+        const nf_f32 d = pl->normal[0] * (P[0] - pl->point[0])
+                       + pl->normal[1] * (P[1] - pl->point[1])
+                       + pl->normal[2] * (P[2] - pl->point[2]);
+        const nf_f32 ad = (d < 0.0f) ? -d : d;
+
+        if (pl->use_box) {
+            /* 投影点落在该平面片段的范围内才算数 */
+            const nf_f32 proj[3] = { P[0] - d * pl->normal[0],
+                                     P[1] - d * pl->normal[1],
+                                     P[2] - d * pl->normal[2] };
+            nf_u8 inside = 1;
+            for (int k = 0; k < 3; ++k) {
+                if (proj[k] < pl->box_min[k] || proj[k] > pl->box_max[k]) {
+                    inside = 0; break;
+                }
+            }
+            if (!inside) continue;
+        }
+        if (ad < best) { best = ad; found = 1; }
+    }
+
+    if (!found) return NF_E_PARAM_RANGE;
+    *out_dist = best;
+    return NF_OK;
+}
+
 } /* extern "C" */

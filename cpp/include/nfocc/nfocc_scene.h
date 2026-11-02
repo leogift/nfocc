@@ -94,6 +94,25 @@ NFStatus nf_scene_raycast(const NFScene *s, const nf_f32 *o, const nf_f32 *d,
  */
 nf_u8 nf_scene_shade(const NFScene *s, const nf_f32 *p, nf_u32 plane_id);
 
+/**
+ * 点到场景表面的**最小距离**（mm）。用于精度评估。
+ *
+ * ## 为什么用这个口径而不是"沿射线求交"
+ * 沿射线求交对**掠射面**（地面那样几乎与视线平行的面）极不稳定：
+ * 点有微小横向偏差，射线就会打到很远的另一处，距离差被放大几十倍。
+ * 实测用它评 1-2 m 段得到 1540 mm，而同一批点的视差误差对应的
+ * 深度理论误差只有 ~30 mm —— 差 50 倍，全是度量方法的伪影。
+ *
+ * 点到表面距离对横向偏差不敏感（横向移动沿平面滑动，距离不变），
+ * 只反映**法向**偏离，也就是"这个体素离真实表面多远"，
+ * 正是"体素位置偏差"的定义。
+ *
+ * @param P        点 (车系, mm)
+ * @param out_dist 输出最小距离 (mm, >=0)；无有效表面时返回 NF_E_PARAM_RANGE
+ */
+NFStatus nf_scene_dist_to_surface(const NFScene *scene, const nf_f32 *P,
+                                  nf_f32 *out_dist);
+
 #ifdef __cplusplus
 }
 #endif

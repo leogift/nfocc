@@ -164,7 +164,14 @@ int main(int argc, char **argv) {
     std::printf("已输出 01_y_*.ppm\n");
 
     /* ---------- 2. 视口 ---------- */
-    const nf_u32 vw = (nf_u32)(W / NF_E_DOWNSCALE);
+    /**
+     * 视口宽度用**常量 NF_V_VIEW_W**，不再由图像宽/E_DOWNSCALE 推导。
+     *
+     * 原来 1280/2=640，f 只有 85.7，5 m 处中位误差 ~490mm。
+     * 现在固定 1024（f=137.2），是精度需求的直接结果。
+     * 源图 1280 宽仍大于视口，采样不欠采样。
+     */
+    const nf_u32 vw = (W < NF_V_VIEW_W) ? W : (nf_u32)NF_V_VIEW_W;
     NFViewParams vp;
     if (nf_view_params_derive_fov(&vp, vw, NF_V_VIEW_HFOV_DEG,
                                   NF_V_VIEW_VFOV_DEG) != NF_OK) {

@@ -74,7 +74,19 @@ NFPipelineConfig make_cfg() {
     nf_voxel_grid_init(&cfg.grid, NF_G_VOX, NF_G_X_MIN, NF_G_X_MAX,
                        NF_G_Y_MIN, NF_G_Y_MAX, NF_G_Z_MIN, NF_G_Z_MAX);
     cfg.b_min_mm = NF_B_MIN;
-    cfg.b_max_mm = NF_B_MAX;
+    /**
+     * **b_max 必须按本测试自己的引擎/视口容量推导**，不能直接抄全局 NF_B_MAX。
+     *
+     * 容量约束: b_max <= max_disp * Z_MIN / f。
+     * 本测试用 480 宽视口 + max_disp=128 -> 上限约 462mm；
+     * 全局 NF_B_MAX 已提到 833（对应 1024 宽视口 + 256 视差），
+     * 直接抄会让 validate 判 RANGE —— 这个拒绝是对的，说明判据有效。
+     */
+    {
+        const float cap = (float)cfg.engine.max_disp_px * NF_B_ZMIN_EFF / cfg.view.f;
+        cfg.b_max_mm = (cap * 0.98f < NF_B_MAX) ? (cap * 0.98f) : NF_B_MAX;
+        if (cfg.b_max_mm < cfg.b_min_mm * 1.5f) cfg.b_max_mm = NF_B_MAX;
+    }
     cfg.sigma_d_px = NF_T_SIGMA_D;
     cfg.sigma_b_ratio = NF_T_SIGMA_B_RATIO;
     cfg.gap_max_frames = NF_GAP_MAX_FRAMES;
