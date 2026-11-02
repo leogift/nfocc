@@ -24,6 +24,7 @@
 | 2b | `report/ARCH-REPORT.md` | 架构/Pipeline/流程解析（PDF: `report/NFOCC-架构与流程解析.pdf`） |
 | 2c | `DECISION-DEPTH-ACCURACY.md` | **精度目标决策**：150°/1024, 5-15km/h, 参数与实测 |
 | 2d | `PROBE-FINDINGS.md` | **视差探针结论**：前后视口 90x120 不自洽，待决策 |
+| 2e | `PROBE-RESULTS.md` | **探针实测**：C 方案 557x966 落地，六视口视差误差 |
 | 1 | `SPEC-COORD.md` | 点、向量、矩阵、旋转到底怎么定义？谁是谁的转置？ |
 | 2 | `SPEC-CAMERA.md` | 4 路鱼眼的内参模型（KB）、图像格式、有效像素区 |
 | 2a | `SPEC-CALIB-CFG.md` | 相机内外参配置文件格式与默认值（f=550、车 5000×2000） |

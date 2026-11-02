@@ -32,6 +32,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <algorithm>
@@ -85,7 +86,7 @@ int main(int argc, char **argv) {
     NFViewPlanEntry plan[6];
     const nf_u32 nplan = nf_viewplan_default(plan, 6u);
     std::printf("视口规划: %u 条\n", nplan);
-    const nf_u32 vw = (nf_u32)NF_V_VIEW_W;
+    /* 视口宽按类别取（规划表里已带）：左右 1024、前后 557 */
 
     static const float kCamX[4] = { 3500.0f, -1500.0f, 0.0f, 0.0f };
     static const float kCamY[4] = { 0.0f, 0.0f, 1000.0f, -1000.0f };
@@ -96,8 +97,6 @@ int main(int argc, char **argv) {
 
     for (nf_u32 pi = 0; pi < nplan; ++pi) {
         const NFViewPlanEntry &pe = plan[pi];
-        std::printf("  -> 处理 %u: cam=%u yaw=%.0f hfov=%.0f\n", pi, pe.cam_id,
-                    (double)pe.yaw_deg, (double)pe.hfov_deg);
         if (!all && cam_filter >= 0 && (int)pe.cam_id != cam_filter) continue;
         /* 默认只跑 FV 的 +45° 视口，跑全量要 --all */
         if (!all && cam_filter < 0 && !(pe.cam_id == 0u && pe.yaw_deg > 0.0f)) continue;
@@ -136,13 +135,14 @@ int main(int argc, char **argv) {
 
         NFViewParams vp;
         {
-            const NFStatus vst = nf_view_params_derive_fov(&vp, vw, pe.hfov_deg, pe.vfov_deg);
+            const NFStatus vst = nf_view_params_derive_fov(&vp, pe.width_px,
+                                                           pe.hfov_deg, pe.vfov_deg);
             if (vst != NF_OK) {
                 std::printf("[%s] 视口参数失败: %s\n", view_tag(pe), nf_status_str(vst));
                 continue;
             }
         }
-        std::printf("     [A 视口参数OK]\n");
+
         vp.yaw_deg = pe.yaw_deg;
 
         /* 纹理周期按视口 f 定，保证 SGBM 有高频可匹配 */
@@ -176,7 +176,6 @@ int main(int argc, char **argv) {
             }
         }
 
-        std::printf("     [B 渲染帧OK]\n");
         /* ---------- 视口 LUT ---------- */
         NFViewLut lut;
         {
@@ -203,11 +202,20 @@ int main(int argc, char **argv) {
             }
         }
 
-        std::printf("     [C LUT构建OK]\n");
         const size_t np = (size_t)vp.width * vp.height;
         std::vector<nf_u8> vimg(np), rimg(np), vval(np), rval(np);
-        nf_view_warp(&lut, fc.img, imgW, imgH, imgW, vimg.data(), vval.data());
-        nf_view_warp(&lut, fr.img, imgW, imgH, imgW, rimg.data(), rval.data());
+        /**
+         * **左右顺序：参考帧(更靠后)是左图，当前帧是右图。**
+         *
+         * 车体前进 -> 当前帧相机在参考帧前方。视差 d = f*b/Z 为正，
+         * 即同一物点在**右图**中更靠右。SGBM 要求左图来自更靠左的相机：
+         * 当前帧相机 x=3500、参考帧 3222，墙在 4000 —— 当前帧更靠右。
+         *
+         * 弄反的实测后果：墙面 Z=500mm 处 d_true=154.8px，
+         * SGBM 只给出 d_meas=1.0px，中位误差 85px 全是这个方向错误。
+         */
+        nf_view_warp(&lut, fr.img, imgW, imgH, imgW, vimg.data(), vval.data());
+        nf_view_warp(&lut, fc.img, imgW, imgH, imgW, rimg.data(), rval.data());
 
         /* ---------- SGBM ---------- */
         NFEngineConfig ec;
@@ -250,6 +258,15 @@ int main(int argc, char **argv) {
         std::memset(&dm, 0, sizeof(dm));
         dm.version = NF_DISPARITY_MAP_VERSION;
         dm.width = vp.width; dm.height = vp.height;
+        /**
+         * **stride 必须显式设**。memset 后为 0 时引擎按
+         *   drow = out->disp + y * out->stride_f
+         * 计算行地址，结果每行都写回第 0 行，整幅图被覆盖成一行。
+         * 实测症状：全图 103 个 valid 全挤在第 0 行，而后处理按
+         * (x,y) 索引找不到它们 -> "视差有效=0" 却又有 valid 计数。
+         */
+        dm.stride_f = (nf_i32)vp.width;
+        dm.stride_b = (nf_i32)vp.width;
         dm.disp = disp.data(); dm.valid = valid.data(); dm.conf = conf.data();
         NFDisparityRange dr;
         std::memset(&dr, 0, sizeof(dr));
@@ -268,23 +285,6 @@ int main(int argc, char **argv) {
             continue;
         }
 
-        {
-            int nv = 0, nz = 0;
-            float dmin = 1e9f, dmax = -1e9f;
-            for (size_t k = 0; k < np; ++k) {
-                if (!valid[k]) continue;
-                ++nv;
-                if (disp[k] <= 0.0f) { ++nz; continue; }
-                if (disp[k] < dmin) dmin = disp[k];
-                if (disp[k] > dmax) dmax = disp[k];
-            }
-            std::printf("     [D SGBM] 视口%ux%u valid=%d 零视差=%d 范围=[%.2f,%.2f] "
-                        "输入L=%u R=%u 前256字节L均值=%.0f R均值=%.0f\n",
-                        vp.width, vp.height, nv, nz,
-                        nv > nz ? (double)dmin : -1.0, nv > nz ? (double)dmax : -1.0,
-                        lst.valid, lst.valid,
-                        (double)vimg[100], (double)rimg[100]);
-        }
         /* ---------- 逐像素比较 d_meas vs d_true ----------
          *
          * d_true = f * b / Z_view
@@ -295,47 +295,51 @@ int main(int argc, char **argv) {
          * 其中 t 由渲染深度 Z_cam 换算（P = C + d_cam * (Z_cam / d_cam.z)）。
          * 再取 P 在视口 forward 轴上的投影。
          */
-        const float yawv = vp.yaw_deg * 3.14159265f / 180.0f;
-        const float fwd[3] = { std::cos(yawv), std::sin(yawv), 0.0f };
-        const float cxv = pose.t[0], cyv = pose.t[1], czv = pose.t[2];
+        /**
+         * 视口光轴（车系）。虚拟相机 pitch=0/roll=0，光轴水平，
+         * 直接用 (cos yaw, sin yaw, 0)。z 分量恒为 0 是对的：
+         * 视差沿视口 x 轴，对应的是**光轴深度**，与高度无关。
+         */
+        const float yr = vp.yaw_deg * 3.14159265f / 180.0f;
+        const float fwd[3] = { std::cos(yr), std::sin(yr), 0.0f };
+        /* 左图 = 参考帧，光心用 pref.t */
+        const float cxv = pref.t[0], cyv = pref.t[1];
 
         std::vector<double> errs, zview;
         int n_gt_miss = 0;
-        int n_disp_valid = 0;
+        int n_disp_valid = 0, n_uv_oor = 0, n_vval0 = 0, n_dr0 = 0;
 
         for (nf_u32 y = 0; y < vp.height; ++y) {
             for (nf_u32 x = 0; x < vp.width; ++x) {
                 const size_t i = (size_t)y * vp.width + x;
-                if (!valid[i] || !vval[i]) continue;
+                if (!valid[i]) continue;
+                if (!vval[i]) { ++n_vval0; continue; }
                 const float d = disp[i];
-                if (d <= 0.0f || d > dr.d_max) continue;
+                if (d <= 0.0f || d > dr.d_max) { ++n_dr0; continue; }
                 ++n_disp_valid;
 
-                /* LUT 给的原图坐标（Q12.4） */
                 const int su4 = (int)lut.u_q4[i];
                 const int sv4 = (int)lut.v_q4[i];
                 const int su = su4 >> 4, sv = sv4 >> 4;
-                if (su < 0 || sv < 0 || su >= (int)imgW || sv >= (int)imgH) continue;
+                if (su < 0 || sv < 0 || su >= (int)imgW || sv >= (int)imgH) { ++n_uv_oor; continue; }
 
-                const float z_cam = fc.depth[(size_t)sv * imgW + su];
+                /* 左图现在是参考帧，真值取参考帧的 depth 才同源 */
+                const float z_cam = fr.depth[(size_t)sv * imgW + su];
                 if (z_cam <= 0.0f) { ++n_gt_miss; continue; }
 
-                /* 相机射线（相机系） */
                 float dc[3];
                 if (nf_cam_unproject_c(&cam, (float)su + 0.5f, (float)sv + 0.5f, dc) != NF_OK)
                     continue;
                 if (dc[2] <= 1e-6f) continue;
 
-                /* 真值点（车系）= 光心 + R * dc * (Z_cam / dc_z) */
-                const float t = z_cam / dc[2];
+                const float tpar = z_cam / dc[2];
                 float P[3];
                 for (int k = 0; k < 3; ++k)
-                    P[k] = pose.t[k] + (pose.R[k*3+0]*dc[0] + pose.R[k*3+1]*dc[1]
-                                        + pose.R[k*3+2]*dc[2]) * t;
+                    P[k] = pref.t[k] + (pref.R[k*3+0]*dc[0] + pref.R[k*3+1]*dc[1]
+                                        + pref.R[k*3+2]*dc[2]) * tpar;
 
-                /* 视口光轴上的深度 */
                 const float zv = (P[0]-cxv)*fwd[0] + (P[1]-cyv)*fwd[1];
-                if (zv < 500.0f || zv > 5000.0f) continue;   /* 只看 0.5-5m */
+                if (zv < 500.0f || zv > 5000.0f) continue;
 
                 const float d_true = vp.f * b_mm / zv;
                 errs.push_back((double)(d - d_true));
@@ -355,11 +359,13 @@ int main(int argc, char **argv) {
                             + lst.d2_out_of_r_valid + lst.d3_over_max_theta
                             + lst.d4_body_mask + 1));
         if (errs.empty()) {
-            std::printf("  无有效样本: LUT有效=%u 视差有效=%d 真值缺失=%d "
-                        "([%d,%d] 中视差 [%.1f,%.1f])\n",
-                        lst.valid, n_disp_valid, n_gt_miss,
+            std::printf("  无有效样本: LUT=%u 视差=%d 原图越界=%d 真值缺失=%d "
+                        "([%d,%d] 中视差 [%.1f,%.1f]) vval0=%d dr0=%d\n",
+                        lst.valid, n_disp_valid, n_uv_oor, n_gt_miss,
+                        /* 下面两行是新增诊断 */
                         (int)dr.d_min, (int)dr.d_max,
-                        (double)vp.f * b_mm / 5000.0, (double)vp.f * b_mm / 500.0);
+                        (double)vp.f * b_mm / 5000.0, (double)vp.f * b_mm / 500.0,
+                        n_vval0, n_dr0);
             ++n_fail;
             continue;
         }

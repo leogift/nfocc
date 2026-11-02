@@ -30,14 +30,17 @@ nf_u32 nf_viewplan_default(NFViewPlanEntry *out, nf_u32 max_entries) {
     const float hf_side  = NF_V_VIEW_HFOV_DEG_SIDE;
     const float vf       = NF_V_VIEW_VFOV_DEG;
 
+    const nf_u32 w_front = NF_V_VIEW_W_FRONT;
+    const nf_u32 w_side  = NF_V_VIEW_W;
+
     const NFViewPlanEntry all[6] = {
-        /* cam  yaw     hfov     vfov  side */
-        { 0u,  -45.0f, hf_front, vf, 0u, {0,0,0} },   /* FV 左前 */
-        { 0u,  +45.0f, hf_front, vf, 0u, {0,0,0} },   /* FV 右前 */
-        { 1u, -135.0f, hf_front, vf, 0u, {0,0,0} },   /* RV 左后 */
-        { 1u, +135.0f, hf_front, vf, 0u, {0,0,0} },   /* RV 右后 */
-        { 2u,  +90.0f, hf_side,  vf, 1u, {0,0,0} },   /* ML */
-        { 3u,  -90.0f, hf_side,  vf, 1u, {0,0,0} },   /* MR */
+        /* cam  yaw     hfov     vfov  width    side */
+        { 0u,  -45.0f, hf_front, vf, w_front, 0u, {0,0,0} },   /* FV 左前 */
+        { 0u,  +45.0f, hf_front, vf, w_front, 0u, {0,0,0} },   /* FV 右前 */
+        { 1u, -135.0f, hf_front, vf, w_front, 0u, {0,0,0} },   /* RV 左后 */
+        { 1u, +135.0f, hf_front, vf, w_front, 0u, {0,0,0} },   /* RV 右后 */
+        { 2u,  +90.0f, hf_side,  vf, w_side,  1u, {0,0,0} },   /* ML */
+        { 3u,  -90.0f, hf_side,  vf, w_side,  1u, {0,0,0} },   /* MR */
     };
 
     const nf_u32 n = (max_entries < 6u) ? max_entries : 6u;

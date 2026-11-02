@@ -29,6 +29,13 @@ typedef struct {
     nf_f32 yaw_deg;         /**< 车系绝对 yaw (ISO 8855, 逆时针正) */
     nf_f32 hfov_deg;        /**< 该视口的水平张角 */
     nf_f32 vfov_deg;        /**< 垂直张角 */
+    /**
+     * 视口宽 (px)。**按类别不同**：
+     *   左右 150° -> 1024（f=137.2）
+     *   前后 90°  -> 557 （f=278.5，垂直 120° 高度约 966，落在源图内）
+     * 高度不由这里给，由 vfov 与 f 派生。
+     */
+    nf_u32 width_px;
     nf_u8  is_side;         /**< 1 = 侧向视口 (ML/MR) */
     nf_u8  _pad[3];
 } NFViewPlanEntry;
