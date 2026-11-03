@@ -81,6 +81,16 @@ typedef struct {
      * 掩码尺寸是**原图尺寸**，由 `nf_mask_build_vehicle` 生成。
      */
     const nf_u8 *body_mask[NF_NUM_CAMERAS];
+
+    /**
+     * σ 硬截断门限 (cm)，0 = 用 NF_SIGMA_MAX_CM(80)，负值 = 关闭截断。
+     *
+     * 超过门限的点直接丢弃，不进体素化。用途是切掉 SGBM 锁错周期产生
+     * 的远处幽灵点（虚假小视差 -> 深度爆炸 -> σ 平方反比膨胀）。
+     *
+     * 设负值只为**做负对照**（验证截断真的在起作用），生产配置不该关。
+     */
+    nf_f32 sigma_max_cm;
 } NFPipelineConfig;
 
 /** 单帧输入 */

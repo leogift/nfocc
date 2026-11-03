@@ -152,6 +152,35 @@ NFStatus nf_voxel_verify_cross(NFVoxelCtx *ctx,
                                nf_u8 source_bit, nf_f32 thresh_mm,
                                nf_u8 *out_verdict);
 
+/**
+ * D4 检验门限的**距离自适应**取值 (mm)。
+ *
+ * ## 为什么不能用固定 50mm
+ * D4 拿两次观测的 3D 残差判一致性。但两次观测的精度不同：
+ *
+ *   - 长基线 b=500mm、短基线 b=278mm，深度误差比 ≈ 1.8
+ *   - 2 m 处 σ 分别约 6cm 与 11cm
+ *
+ * 固定 50mm 门限时，短基线的正常误差（11cm）就已经超限，导致
+ * **长基线的有效点被误剔除**。报告 §3.1 指出这条，是对的。
+ *
+ * ## 取法
+ *   τ = max(τ_min, k · sqrt(σ1² + σ2²))
+ *
+ * 两项独立观测的残差标准差是 sqrt(σ1²+σ2²)，取 k=2 约覆盖 95%。
+ * k=3 太松（近场几乎不剔除），k=1 太紧（远场全剔除）。
+ *
+ * @param z_mm     物点深度（取两次观测的平均）
+ * @param f_px     视口焦距
+ * @param b1_mm    第一次观测的基线
+ * @param b2_mm    第二次观测的基线
+ * @param tau_min_mm 下限，防止近场门限退化为 0
+ * @return 门限 (mm)
+ */
+nf_f32 nf_verify_thresh_mm(nf_f32 z_mm, nf_f32 f_px,
+                           nf_f32 b1_mm, nf_f32 b2_mm,
+                           nf_f32 tau_min_mm);
+
 /** 体素表统计 */
 NFStatus nf_voxel_stats(const NFVoxelCtx *ctx, nf_u32 *num_entries,
                         nf_u32 *num_slots, nf_u32 *collisions);

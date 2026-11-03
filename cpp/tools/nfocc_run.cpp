@@ -143,6 +143,7 @@ int main(int argc, char **argv) {
     bool viewplan = false;
     float hfov_deg = NF_V_VIEW_HFOV_DEG;
     bool no_body_mask = false;       /* --no-body-mask: 关闭 D1 */
+    float sigma_max_cm = 0.0f;       /* --sigma-max: σ 截断门限(cm)，负=关闭 */
     bool d4_on = false;              /* --d4: 启用双基线 + D4 */
     float speed_kmh = 5.0f;          /* --speed: 车速, 驱动 yaw_rate 积分 */
     float yaw_rate_dps = 0.0f;       /* --yaw-rate: 偏航率 deg/s */
@@ -163,6 +164,8 @@ int main(int argc, char **argv) {
         else if (!std::strcmp(argv[i], "--forward")) forward = true;
         else if (!std::strcmp(argv[i], "--viewplan")) viewplan = true;
         else if (!std::strcmp(argv[i], "--no-body-mask")) no_body_mask = true;
+        else if (!std::strcmp(argv[i], "--sigma-max") && i + 1 < argc)
+            sigma_max_cm = (float)atof(argv[++i]);
         else if (!std::strcmp(argv[i], "--d4")) d4_on = true;
         else if (!std::strcmp(argv[i], "--speed") && i + 1 < argc) speed_kmh = (float)atof(argv[++i]);
         else if (!std::strcmp(argv[i], "--yaw-rate") && i + 1 < argc) yaw_rate_dps = (float)atof(argv[++i]);
@@ -367,6 +370,12 @@ int main(int argc, char **argv) {
         } else {
             std::printf("D1 车身掩码已关闭 (--no-body-mask)\n");
         }
+
+        /* σ 硬截断门限：与 D1 无关，必须在 if/else 之外设置 */
+        cfg.sigma_max_cm = sigma_max_cm;
+        std::printf("σ 截断门限 %.0f cm%s\n",
+                    (double)(sigma_max_cm == 0.0f ? NF_SIGMA_MAX_CM : sigma_max_cm),
+                    sigma_max_cm < 0.0f ? " (已关闭)" : "");
         /* B_MAX 必须随 f 重算: B_MAX = numDisp*Z_MIN/f */
         const float bmax_new = (float)NF_E_MAX_DISP * NF_B_ZMIN_EFF / cfg.view.f;
         if (cfg.b_max_mm > bmax_new) {

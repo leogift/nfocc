@@ -338,7 +338,16 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
                                   p->view_val[c * 2]);
     }
 
+    /**
+     * σ 硬截断门限由配置解析一次，两个分支（前向/侧向）共用。
+     * 0 -> 默认 NF_SIGMA_MAX_CM；负值 -> 关闭（仅用于负对照）。
+     */
+    const nf_f32 sigma_cap = (p->cfg.sigma_max_cm == 0.0f)
+                           ? (nf_f32)NF_SIGMA_MAX_CM : p->cfg.sigma_max_cm;
+
     for (nf_u32 c = 0; c < NF_NUM_CAMERAS; ++c) {
+        /* 本相机被 σ 截断的点数，供诊断输出 */
+        nf_u32 n_sigma_cut = 0;
         /* 外参自检失败的相机: 整个相机禁用 (SPEC-ICD 失效语义表) */
         if (p->cam_disabled & (nf_u8)(1u << c)) {
             out->cam_status[c] = NF_E_EXTRINSIC_INVALID;
@@ -533,6 +542,11 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
                                   cfg_view_f(p), b_len,
                                   cfg_view_f(p) * b_len / dist, 0.5f, 0.02f)
                             : 255u;
+                        /* σ 硬截断：幽灵点的 σ 会爆到几百 cm，直接丢 */
+                        if (sigma_cap > 0.0f && (nf_f32)sig > sigma_cap) {
+                            ++n_sigma_cut;
+                            continue;
+                        }
                         if (nf_voxel_insert_with_sigma(p->voxel, P[0], P[1], P[2],
                                                        p->m_conf[i], (nf_u8)(1u << c),
                                                        sig) == NF_OK)
@@ -696,6 +710,22 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
                 const nf_u8 sig2 = nf_compute_spatial_uncertainty_cm(
                     cfg_view_f(p), dec.baseline_mm, d, 0.5f, 0.02f);
 
+                /**
+                 * σ 硬截断（NEW_MOD §1.2.2）。
+                 *
+                 * SGBM 在规则纹理上会锁到错误的视差周期 —— 实测真值
+                 * 140.8px 报成 2.2px。Z=f·b/d 下 d 变小则 Z 爆炸，
+                 * 这些点会散到几十米外，把整片 BEV 糊掉。
+                 *
+                 * 方差传播正好识别它们：d 极小时 σ ∝ 1/d² 迅速膨胀。
+                 * 所以按 σ 截断比按距离截断更有依据 —— 后者会误杀
+                 * "远处但测量可靠"的点，而 σ 只看"这个测量可不可信"。
+                 */
+                if (sigma_cap > 0.0f && (nf_f32)sig2 > sigma_cap) {
+                    ++n_sigma_cut;
+                    continue;
+                }
+
                 if (nf_voxel_insert_with_sigma(p->voxel, Pv[0], Pv[1], Pv[2],
                                                p->dmap[c].conf[i], (nf_u8)(1u << c),
                                                sig2) == NF_OK)
@@ -704,6 +734,10 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
         }
         out->cam_status[c] = NF_OK;
         out->num_points_per_cam[c] = inserted;
+        if (n_sigma_cut) {
+            nf_log_msg(NF_LOG_INFO, "cam%u σ截断剔除 %u 点 (门限 %.0fcm)",
+                       c, n_sigma_cut, (double)sigma_cap);
+        }
     }
 
     /* 主导模式: 取产出点数最多的相机 */

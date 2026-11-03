@@ -140,6 +140,13 @@ target_link_libraries(test_zmq_io PRIVATE nfocc_io)
 add_test(NAME unit_zmq_io COMMAND test_zmq_io)
 set_tests_properties(unit_zmq_io PROPERTIES LABELS unit)
 
+# NEW_MOD 改进验证 + 评审报告回归
+add_executable(test_newmod unit/test_newmod.cpp)
+target_include_directories(test_newmod PRIVATE ${NF_TEST_INC})
+target_link_libraries(test_newmod PRIVATE nfocc_core)
+add_test(NAME unit_newmod COMMAND test_newmod)
+set_tests_properties(unit_newmod PROPERTIES LABELS unit)
+
 # ---------------------------------------------------------------- 系统测试
 if(TARGET nfocc_run)
   add_test(NAME system_run_synthetic

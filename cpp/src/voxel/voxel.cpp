@@ -394,6 +394,41 @@ NFStatus nf_voxel_insert_with_sigma(NFVoxelCtx *ctx,
 
 /* ==================== REV-001: D4 双基线交叉验证 ==================== */
 
+
+nf_f32 nf_verify_thresh_mm(nf_f32 z_mm, nf_f32 f_px,
+                           nf_f32 b1_mm, nf_f32 b2_mm,
+                           nf_f32 tau_min_mm) {
+    if (!(z_mm > 0.0f) || !(f_px > 0.0f)) return (tau_min_mm > 0.0f) ? tau_min_mm : 50.0f;
+    const nf_f32 tmin = (tau_min_mm > 0.0f) ? tau_min_mm : 50.0f;
+
+    /*
+     * 两次观测各自的深度不确定度（与 nf_compute_spatial_uncertainty_cm
+     * 同源，但这里要 mm 且不回绕到 u8）。
+     *
+     *   σ_Z = sqrt( (Z²/(f·b) · σ_d)² + (Z · σ_b)² )
+     *
+     * 注意第一项：∂Z/∂d = -Z²/(f·b)，不是 Z/d —— 两者等价
+     * （因 Z = f·b/d，Z/d = f·b/d²，而 Z²/(f·b) = f·b/d²），
+     * 但用 Z²/(f·b) 更容易看出它随 Z 平方增长。
+     */
+    const nf_f32 sig_d = 0.5f;      /* 亚像素匹配精度 */
+    const nf_f32 sig_b = 0.02f;     /* 里程计相对漂移 2% */
+
+    auto sigma_z = [&](nf_f32 b) -> nf_f32 {
+        if (!(b > 0.0f)) return 0.0f;
+        const nf_f32 t_d = (z_mm * z_mm) / (f_px * b) * sig_d;
+        const nf_f32 t_b = z_mm * sig_b;
+        return std::sqrt(t_d * t_d + t_b * t_b);
+    };
+
+    const nf_f32 s1 = sigma_z(b1_mm);
+    const nf_f32 s2 = sigma_z(b2_mm);
+    /* 两项独立观测，残差标准差 = sqrt(σ1² + σ2²)，取 2 倍约 95% */
+    const nf_f32 tau = 2.0f * std::sqrt(s1 * s1 + s2 * s2);
+
+    return (tau > tmin) ? tau : tmin;
+}
+
 NFStatus nf_voxel_verify_cross(NFVoxelCtx *ctx,
                                nf_f32 x, nf_f32 y, nf_f32 z,
                                nf_u8 source_bit, nf_f32 thresh_mm,
