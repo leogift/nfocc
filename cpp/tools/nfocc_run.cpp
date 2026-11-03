@@ -379,6 +379,13 @@ int main(int argc, char **argv) {
         /* σ 硬截断门限：与 D1 无关，必须在 if/else 之外设置 */
         cfg.sigma_max_cm = sigma_max_cm;
 
+        /* D4 双基线交叉验证（NEW_MOD §1.3） */
+        if (d4_on) {
+            cfg.enable_d4 = 1u;
+            cfg.d4_tau_min_mm = 50.0f;
+            std::printf("D4 交叉验证已启用 (门限下限 50mm, 实际随距离自适应)\n");
+        }
+
         /* REV-003 五阶段精简 */
         if (filter_on) {
             nf_voxel_filter_default_config(&cfg.filter_cfg);

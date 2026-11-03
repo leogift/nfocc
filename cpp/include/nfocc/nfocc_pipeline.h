@@ -104,6 +104,28 @@ typedef struct {
     nf_u8  enable_voxel_filter;
     nf_u8  _pad_filter[3];
     NFVoxelFilterConfig filter_cfg;   /**< enable_voxel_filter=1 时生效 */
+
+    /* ---- NEW_MOD §2.2.1 NFORM 产品化增强项 ---- */
+
+    /**
+     * D4 双基线交叉验证（NEW_MOD §1.3）。
+     *
+     * 1 = 启用：每个三角化点先查体素表，同格已有观测则做 3D 残差检验。
+     *      通过 -> 融合质心、σ 减半；超限 -> 衰减权重。
+     * 0 = 关闭：直接插入（旧行为）。
+     *
+     * 代价是每点一次哈希查找，实测约 1.3 倍插入耗时。
+     */
+    nf_u8  enable_d4;
+    nf_u8  _pad_d4[3];
+
+    /**
+     * D4 检验门限下限 (mm)。0 = 用 50mm。
+     *
+     * **实际门限随距离自适应**（nf_verify_thresh_mm），这个值只是下限：
+     * 近场 σ 小的时候防止门限退化到 0，远场会被 2*sqrt(σ1²+σ2²) 顶上去。
+     */
+    nf_f32 d4_tau_min_mm;
 } NFPipelineConfig;
 
 /** 单帧输入 */

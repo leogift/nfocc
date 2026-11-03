@@ -207,4 +207,50 @@ NF_TEST(sigma_cap_prevents_bad_only_voxel) {
     NF_CHECK_MSG(200u > cap, "σ=200 应超门限，调用方须跳过");
 }
 
+
+/* ===== D4 接入主链后的行为（NEW_MOD §1.3.2） ===== */
+
+/**
+ * D4 的三条路径：首次插入 / 融合 / 残差超限衰减。
+ *
+ * 这条守的是"开了 D4 点数不变是正常的"这个反直觉结论：
+ * 融合只更新质心、超限只衰减 n_eff，**都不减少体素数**。
+ */
+NF_TEST(d4_three_paths) {
+    NFVoxelGridParams g;
+    NF_CHECK_STATUS(nf_voxel_grid_init(&g, NF_G_VOX, NF_G_X_MIN, NF_G_X_MAX,
+                                       NF_G_Y_MIN, NF_G_Y_MAX,
+                                       NF_G_Z_MIN, NF_G_Z_MAX), NF_OK);
+    NFVoxelCtx *c = nullptr;
+    NF_CHECK_STATUS(nf_voxel_create(&c, &g, 1024, 8.0f), NF_OK);
+
+    /* 路径 1：首次出现 -> 正常插入 */
+    NF_CHECK_STATUS(nf_voxel_insert_with_sigma(c, 2000.0f, 0.0f, 0.0f,
+                                               1.0f, 1u, 20u), NF_OK);
+    nf_u32 n = 0, s = 0, col = 0;
+    nf_voxel_stats(c, &n, &s, &col);
+    NF_CHECK_EQ_INT((int)n, 1);
+
+    /* 路径 2：同位置第二观测 -> 通过并融合 */
+    nf_u8 v = 0;
+    NF_CHECK_STATUS(nf_voxel_verify_cross(c, 2000.0f, 0.0f, 0.0f, 2u, 165.0f, &v),
+                    NF_OK);
+    NF_CHECK_EQ_INT((int)v, 1);
+    std::printf("      同位置: verdict=%u (融合)\n", v);
+
+    /* 路径 3：偏 800mm -> 超限，衰减但不删 */
+    nf_u8 v2 = 0;
+    NF_CHECK_STATUS(nf_voxel_verify_cross(c, 2800.0f, 0.0f, 0.0f, 2u, 165.0f, &v2),
+                    NF_OK);
+    NF_CHECK_EQ_INT((int)v2, 0);
+    std::printf("      偏800mm: verdict=%u (超限衰减)\n", v2);
+
+    /* **关键**：三条路径走完，体素数仍是 1 —— 融合与衰减都不删点 */
+    nf_voxel_stats(c, &n, &s, &col);
+    NF_CHECK_EQ_INT((int)n, 1);
+    std::printf("      走完三条路径体素数仍为 %u（D4 不删点，只改置信）\n", n);
+
+    nf_voxel_destroy(c);
+}
+
 int main() { return nftest::run_all(); }

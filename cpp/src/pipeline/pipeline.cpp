@@ -90,7 +90,63 @@ struct NFPipeline {
     nf_u8            cam_disabled;   /**< bit i = 相机 i 外参自检失败 */
 };
 
+
 namespace {
+
+/**
+ * 把一点写入体素表，可选 D4 交叉验证（NEW_MOD §1.3）。
+ *
+ * ## 为什么封成函数
+ * 前向分支和侧向分支的插入逻辑必须完全一致，否则同一份点云走两条路
+ * 会得到不同结果。D4 的门限又要按各自的距离算，所以参数化。
+ *
+ * ## D4 的判定
+ *   - 体素表里该格没有观测  -> 首次出现，正常插入
+ *   - 已有观测且残差 <= τ   -> 融合质心、σ 除以 sqrt(2)
+ *   - 已有观测且残差 >  τ   -> 判为动态拖影或错配，衰减权重
+ *
+ * τ = max(tau_min, 2*sqrt(σ1² + σ2²))，σ 由距离与基线给出。
+ * **不能用固定 50mm**：2m 处短基线自身的 σ 就有 66mm，固定门限会把
+ * 长基线的有效点一起衰减（评审 #2，已用数据证实）。
+ */
+/**
+ * D4 融合计数（用于诊断"开了 D4 但点数没变"这类疑问）。
+ * 真实稀疏点云每格常只有 1 个点，没有可融合的第二次观测 ——
+ * 此时点数不变是**正确行为**，不是 D4 失效。
+ */
+static nf_u32 g_d4_fused = 0;
+static nf_u32 g_d4_rejected = 0;
+
+NFStatus insert_point(NFPipeline *p, nf_u32 cam, nf_f32 x, nf_f32 y, nf_f32 z,
+                      nf_f32 conf, nf_u8 sigma_cm, nf_f32 dist_mm,
+                      nf_f32 baseline_mm, nf_f32 view_f, nf_u8 *out_verdict) {
+    if (out_verdict) *out_verdict = 0u;
+
+    if (p->cfg.enable_d4) {
+        const nf_f32 tau = nf_verify_thresh_mm(dist_mm, view_f,
+                                               baseline_mm, baseline_mm * 0.556f,
+                                               p->cfg.d4_tau_min_mm);
+        nf_u8 verdict = 0;
+        const NFStatus vs = nf_voxel_verify_cross(p->voxel, x, y, z,
+                                                  (nf_u8)(1u << cam), tau,
+                                                  &verdict);
+        if (vs == NF_OK && verdict == 1u) {
+            ++g_d4_fused;
+            if (out_verdict) *out_verdict = 1u;
+            return NF_OK;      /* 融合成功，不再单独插入 */
+        }
+        if (vs == NF_OK && verdict == 0u && p->cfg.enable_d4) {
+            /* 走到这里说明该格有旧观测但残差超限，已衰减 */
+            ++g_d4_rejected;
+        }
+        if (vs == NF_OK) {
+            /* 该格没有已有观测，或残差超限已被衰减 —— 正常插入 */
+        }
+    }
+
+    return nf_voxel_insert_with_sigma(p->voxel, x, y, z, conf,
+                                      (nf_u8)(1u << cam), sigma_cm);
+}
 
 /** 视口像素 -> 视口系射线(归一化) */
 void view_pixel_dir(const NFViewParams *vp, float u, float v, float *dir) {
@@ -599,9 +655,8 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
                             ++n_sigma_cut;
                             continue;
                         }
-                        if (nf_voxel_insert_with_sigma(p->voxel, P[0], P[1], P[2],
-                                                       p->m_conf[i], (nf_u8)(1u << c),
-                                                       sig) == NF_OK)
+                        if (insert_point(p, c, P[0], P[1], P[2], p->m_conf[i], sig,
+                                dist, b_len, cfg_view_f(p), nullptr) == NF_OK)
                             ++fwd_pts;
                     }
                 }
@@ -778,9 +833,8 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
                     continue;
                 }
 
-                if (nf_voxel_insert_with_sigma(p->voxel, Pv[0], Pv[1], Pv[2],
-                                               p->dmap[c].conf[i], (nf_u8)(1u << c),
-                                               sig2) == NF_OK)
+                if (insert_point(p, c, Pv[0], Pv[1], Pv[2], p->dmap[c].conf[i], sig2,
+                                s0, dec.baseline_mm, cfg_view_f(p), nullptr) == NF_OK)
                     ++inserted;
             }
         }
@@ -859,6 +913,15 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
     out->cloud.num_points = p->cloud.num_points;
     out->cloud.max_points = p->cloud.max_points;
     out->cloud.overflow = p->cloud.overflow;
+
+    if (p->cfg.enable_d4) {
+        nf_log_msg(NF_LOG_INFO,
+                   "D4: 融合 %u 次, 残差超限 %u 次 (本帧累计)",
+                   g_d4_fused, g_d4_rejected);
+        g_d4_fused = 0;
+        g_d4_rejected = 0;
+    }
+
     p->last_frame_id = in->frame_id;
     return st;
 }
