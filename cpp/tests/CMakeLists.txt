@@ -155,6 +155,14 @@ target_link_libraries(test_voxel_filter PRIVATE nfocc_core)
 add_test(NAME unit_voxel_filter COMMAND test_voxel_filter)
 set_tests_properties(unit_voxel_filter PROPERTIES LABELS unit)
 
+
+# NEW_MOD 集成回归（§2.5 / §5.3）
+add_executable(test_newmod_integration integration/test_newmod_integration.cpp)
+target_include_directories(test_newmod_integration PRIVATE ${NF_TEST_INC})
+target_link_libraries(test_newmod_integration PRIVATE nfocc_core nfocc_engine_sgbm)
+add_test(NAME pipe_newmod_integrated COMMAND test_newmod_integration)
+set_tests_properties(pipe_newmod_integrated PROPERTIES LABELS integration)
+
 # ---------------------------------------------------------------- 系统测试
 if(TARGET nfocc_run)
   add_test(NAME system_run_synthetic
