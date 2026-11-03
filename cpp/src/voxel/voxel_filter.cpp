@@ -33,24 +33,35 @@ inline nf_u32 ctz32(nf_u32 x) {
 }
 
 /**
- * 快速 atan2 近似，最大误差 ~0.0038 rad。
+ * 快速 atan2 近似（移植自 NFORM dense_voxel_filter.cpp 的 fastAtan2）。
  *
- * 用多项式而不是库函数：一帧要算几十万次，atan2f 在部分 libm 上走
- * double 提高精度，每次几十个周期，累积起来是毫秒级。
+ * ## 为什么换掉原先的多项式
+ * 原先用的是 A&S 5 阶有理近似的系数，但**系数与展开形式不匹配**：
+ * 实测最大误差 0.0785 rad（4.5 度），而注释写的是 0.0038 rad —— 差 20 倍。
+ * 方位角错 4.5 度在 720 扇区（0.5 度/扇区）下会偏 9 个扇区，
+ * 阶段 4 的外壳提取会把远处的点当近处、近处的点当远处。
+ *
+ * NFORM 这版实测最大误差 0.0101 rad，均值 0.0039，够用。
+ *
+ * ## 算法
+ * 用 |y|/(|x|+|y|) 型变量替换把整个象限压到 [0,1]，再用三次多项式
+ * 逼近 atan。只需一次除法，无分支跳转（除符号处理）。
+ *
+ * @note 加 1e-10 是防止 x == -|y| 时分母归零。少了这一项，
+ *       在 ±135 度方向会得到 NaN。
  */
 inline nf_f32 fast_atan2(nf_f32 y, nf_f32 x) {
-    const nf_f32 ax = std::fabs(x), ay = std::fabs(y);
-    if (ax < 1e-9f && ay < 1e-9f) return 0.0f;
-    const nf_f32 mn = (ay < ax) ? ay : ax;
-    const nf_f32 mx = (ay < ax) ? ax : ay;
-    const nf_f32 t = mn / mx;
-    const nf_f32 t2 = t * t;
-    const nf_f32 at = t * (0.7853981633974483f
-                   + t2 * (-0.0464964749f + t2 * (0.0103767019f
-                   + t2 * (-0.0024610778f + t2 * 0.00047815675f))));
-    nf_f32 a = at;
-    if (ay > ax) a = 1.5707963267948966f - at;
-    if (x < 0.0f) a = 3.141592653589793f - a;
+    if (x == 0.0f && y == 0.0f) return 0.0f;
+
+    const nf_f32 ay = std::fabs(y) + 1.0e-10f;
+    nf_f32 a;
+    if (x >= 0.0f) {
+        const nf_f32 r = (x - ay) / (x + ay);
+        a = 0.1963f * r * r * r - 0.9817f * r + 0.78539816339f;
+    } else {
+        const nf_f32 r = (x + ay) / (ay - x);
+        a = 0.1963f * r * r * r - 0.9817f * r + 2.35619449019f;
+    }
     return (y < 0.0f) ? -a : a;
 }
 
@@ -195,9 +206,11 @@ NFStatus nf_voxel_filter_grid_size(const NFVoxelFilterCtx *ctx,
 }
 
 NFStatus nf_voxel_filter_compress(NFVoxelFilterCtx *ctx,
-                                  const NFVoxelEntry *points, nf_u32 n_points,
-                                  nf_u32 *zmap_out, nf_u32 *zindex_out,
-                                  NFDownstreamPoint *pts_out,
+                                  const NFVoxelEntry *NF_DVF_RESTRICT points,
+                                  nf_u32 n_points,
+                                  nf_u32 *NF_DVF_RESTRICT zmap_out,
+                                  nf_u32 *NF_DVF_RESTRICT zindex_out,
+                                  NFDownstreamPoint *NF_DVF_RESTRICT pts_out,
                                   NFVoxelFilterStats *stats) {
     if (!ctx || !zmap_out || !zindex_out || !pts_out) return NF_E_PARAM_NULL;
     if (n_points && !points) return NF_E_PARAM_NULL;

@@ -32,6 +32,30 @@
 extern "C" {
 #endif
 
+/**
+ * 编译器别名分析提示（移植自 NFORM 的 DVF_FORCEINLINE/RESTRICT 用法）。
+ *
+ * ## 为什么要它
+ * `nf_voxel_filter_compress` 的输入点数组与三块输出缓冲**保证不重叠**
+ * （调用方给的缓冲互不相交）。不加这个提示，编译器无法排除
+ * "写 zmap 可能改到 points" 的可能，每次写输出都要重读输入，
+ * 热点循环里这是实打实的浪费。
+ *
+ * ## 为什么不直接用
+ * MSVC 用 `__restrict`，GCC/Clang 用 `__restrict__`，C++ 标准里
+ * 根本没有 restrict。所以要按编译器选。
+ *
+ * **约束**：标了 RESTRICT 的指针如果实际指向重叠内存，行为未定义。
+ * 加之前必须先确认调用方能保证不重叠。
+ */
+#if defined(_MSC_VER)
+#  define NF_DVF_RESTRICT __restrict
+#elif defined(__GNUC__) || defined(__clang__)
+#  define NF_DVF_RESTRICT __restrict__
+#else
+#  define NF_DVF_RESTRICT
+#endif
+
 /** 下游接口硬上限（SERL 标准） */
 #define NF_DVF_HARD_CAP_MAX_POINTS  15000u
 

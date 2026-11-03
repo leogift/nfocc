@@ -323,6 +323,11 @@ endif()
 # ---------------------------------------------------------------- 开发探针
 # 零位移视差探针：同一张图送进 SGBM，视差必须为 0。
 # 这是"匹配链路是否自洽"的最小判据，比端到端精度更早发现问题。
+# REV-003 精简器性能探针（不依赖 SGBM）
+add_executable(probe_dvf_perf tools/probe/probe_dvf_perf.cpp)
+target_link_libraries(probe_dvf_perf PRIVATE nfocc_core)
+set_target_properties(probe_dvf_perf PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 if(NF_SGBM_ON)
     add_executable(probe_zero_disp tools/probe/probe_zero_disp.cpp)
     target_link_libraries(probe_zero_disp PRIVATE nfocc_core nfocc_engine_sgbm)

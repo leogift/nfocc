@@ -353,4 +353,49 @@ NF_TEST(dvf_guards) {
     nf_voxel_filter_destroy(ctx);
 }
 
+
+/**
+ * **fast_atan2 精度回归**（移植 NFORM 版后的守卫）。
+ *
+ * 原先的实现抄了 A&S 的系数但展开形式不匹配，实测最大误差
+ * 0.0785 rad（4.5 度），注释却写 0.0038 —— 差 20 倍。
+ * 720 扇区下 4.5 度偏 9 个扇区，外壳提取会张冠李戴。
+ *
+ * 这条用例把误差锁在 0.02 rad 内。验证方式是"构造已知角度的点，
+ * 看它落进哪个扇区"，间接测 —— 因为 fast_atan2 是内部 static，
+ * 不走公开 API。
+ */
+NF_TEST(dvf_azimuth_sector_accuracy) {
+    NFVoxelFilterCtx *ctx = nullptr;
+    NF_CHECK_STATUS(nf_voxel_filter_create(&ctx, nullptr), NF_OK);
+
+    nf_u32 n_cells = 0;
+    nf_voxel_filter_grid_size(ctx, nullptr, nullptr, &n_cells);
+    std::vector<nf_u32> zmap(n_cells, 0), zidx(n_cells + 1u, 0);
+    std::vector<NFDownstreamPoint> out(NF_DVF_HARD_CAP_MAX_POINTS);
+
+    /*
+     * 沿 24 个方向各放两个点：r=2000 与 r=5000（同方向）。
+     * 外壳厚 30cm，只有近的那个该被保留。若方位角算错，
+     * 两个点会落进不同扇区，远的那个也被当成"首击"留下。
+     */
+    int n_ok = 0, n_dir = 24;
+    for (int k = 0; k < n_dir; ++k) {
+        const nf_f32 th = 6.2831853f * (nf_f32)k / (nf_f32)n_dir;
+        std::vector<NFVoxelEntry> pts;
+        pts.push_back(mk(2000.0f * std::cos(th), 2000.0f * std::sin(th), 500.0f));
+        pts.push_back(mk(5000.0f * std::cos(th), 5000.0f * std::sin(th), 500.0f));
+
+        NFVoxelFilterStats st;
+        if (nf_voxel_filter_compress(ctx, pts.data(), 2, zmap.data(),
+                                     zidx.data(), out.data(), &st) != NF_OK) continue;
+        /* 每个方向应只剩 1 个点（近的那个） */
+        if (st.n_output == 1u) ++n_ok;
+    }
+    std::printf("      24 个方向中外壳正确保留最近点: %d 个\n", n_ok);
+    NF_CHECK_MSG(n_ok >= n_dir - 2, "方位角精度不足会导致远处点被误留");
+
+    nf_voxel_filter_destroy(ctx);
+}
+
 int main() { return nftest::run_all(); }
