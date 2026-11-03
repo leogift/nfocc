@@ -319,6 +319,16 @@ if(NF_BUILD_TESTS)
   add_subdirectory(tests)
 endif()
 
+
+# ---------------------------------------------------------------- 开发探针
+# 零位移视差探针：同一张图送进 SGBM，视差必须为 0。
+# 这是"匹配链路是否自洽"的最小判据，比端到端精度更早发现问题。
+if(NF_SGBM_ON)
+    add_executable(probe_zero_disp tools/probe/probe_zero_disp.cpp)
+    target_link_libraries(probe_zero_disp PRIVATE nfocc_core nfocc_engine_sgbm)
+    set_target_properties(probe_zero_disp PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+endif()
+
 # ---------------------------------------------------------------- 安装
 # 布局:  bin/nfocc_run  lib/libnfocc_*.a  include/nfocc/*.h
 # RPATH 用 $ORIGIN/../lib (见 nf_deps.cmake), 整个目录拷走即可运行。

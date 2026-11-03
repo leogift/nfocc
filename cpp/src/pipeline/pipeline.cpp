@@ -67,6 +67,24 @@ struct NFPipeline {
 
     NFVoxelCtx      *voxel;
     NFPointCloud     cloud;
+
+    /*
+     * REV-003 五阶段精简器。enable_voxel_filter=1 时才创建。
+     *
+     * 三块输出缓冲在这里预分配而不是逐帧 malloc：
+     *   zmap   [n_cells]
+     *   zindex [n_cells+1]
+     *   dvf_pts[max_output]
+     * 逐帧分配会产生堆碎片（实测帧耗时 P99 明显高于中位数）。
+     */
+    NFVoxelFilterCtx *filter;
+    nf_u32           *dvf_zmap;
+    nf_u32           *dvf_zindex;
+    NFDownstreamPoint *dvf_pts;
+    nf_u32            dvf_max_out;
+    nf_u32            dvf_n_cells;
+    NFVoxelFilterStats dvf_stats;
+
     nf_u32           last_frame_id;
     nf_u8            has_ref;
     nf_u8            cam_disabled;   /**< bit i = 相机 i 外参自检失败 */
@@ -262,12 +280,46 @@ NFStatus nf_pipeline_create(NFPipeline **pp, const NFPipelineConfig *cfg,
     st = nf_pointcloud_alloc(&p->cloud, cfg->max_points);
     if (st != NF_OK) { nf_pipeline_destroy(p); return st; }
 
+    /*
+     * REV-003 精简器初始化（仅 enable_voxel_filter=1 时）。
+     *
+     * 三块缓冲一次分配，运行期零堆分配。失败时整个 pipeline 创建失败 ——
+     * 不能"过滤器没起来但 pipeline 能用"，那样下游会拿到未精简的点
+     * 却以为是精简过的。
+     */
+    if (cfg->enable_voxel_filter) {
+        st = nf_voxel_filter_create(&p->filter, &cfg->filter_cfg);
+        if (st != NF_OK) { nf_pipeline_destroy(p); return st; }
+
+        nf_u32 nx = 0, ny = 0, ncell = 0;
+        nf_voxel_filter_grid_size(p->filter, &nx, &ny, &ncell);
+        p->dvf_n_cells = ncell;
+        p->dvf_max_out = cfg->filter_cfg.max_output_points
+                        ? cfg->filter_cfg.max_output_points
+                        : NF_DVF_HARD_CAP_MAX_POINTS;
+
+        p->dvf_zmap   = (nf_u32 *)std::calloc(ncell, sizeof(nf_u32));
+        p->dvf_zindex = (nf_u32 *)std::calloc((size_t)ncell + 1u, sizeof(nf_u32));
+        p->dvf_pts    = (NFDownstreamPoint *)std::calloc(p->dvf_max_out,
+                                                         sizeof(NFDownstreamPoint));
+        if (!p->dvf_zmap || !p->dvf_zindex || !p->dvf_pts) {
+            nf_pipeline_destroy(p);
+            return NF_E_ENGINE_OOM;
+        }
+    }
+
     *pp = p;
     return NF_OK;
 }
 
 NFStatus nf_pipeline_destroy(NFPipeline *p) {
     if (!p) return NF_E_PARAM_NULL;
+
+    /* REV-003 精简器与输出缓冲 */
+    nf_voxel_filter_destroy(p->filter);
+    std::free(p->dvf_zmap);
+    std::free(p->dvf_zindex);
+    std::free(p->dvf_pts);
     for (nf_u32 c = 0; c < NF_NUM_CAMERAS; ++c) {
         nf_lut_destroy(&p->lut[c]);
         for (int k = 0; k < 2; ++k)
@@ -753,20 +805,55 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
         return NF_E_BASELINE_IDLE;
     }
 
-    /* 压平 + 导出 */
-    NFGridOutput g;
-    g.version = NF_GRID_OUTPUT_VERSION;
-    g.n_cells = p->cfg.grid.nx * p->cfg.grid.ny;
-    g.zmap = (nf_u32 *)std::calloc(g.n_cells, sizeof(nf_u32));
-    g.zindex = (nf_u32 *)std::calloc(g.n_cells + 1, sizeof(nf_u32));
-    if (!g.zmap || !g.zindex) {
-        std::free(g.zmap); std::free(g.zindex);
-        return NF_E_ENGINE_OOM;
-    }
-    nf_grid_flatten(p->voxel, &g);
-    nf_grid_output_destroy(&g);
-
+    /*
+     * ==================== REV-003: 五阶段精简 ====================
+     *
+     * **先导出点再让过滤器处理**，而不是让过滤器直接读体素表。
+     *
+     * 原因：评审 §5.1 指出阶段 4 需要 sqrt(x²+y²)，位图只有"某层有没有点"，
+     * 恢复不出坐标。所以顺序必须是「导出点数组 -> 过滤器按数组算」，
+     * 位图只作索引。把这一步写在这里，防止后来者"优化"成直接读位图。
+     */
     NFStatus st = nf_voxel_export_points(p->voxel, &p->cloud);
+
+    if (p->filter && p->cloud.num_points > 0) {
+        /*
+         * 自车运动方向给 FoE 锥判别用。
+         *
+         * 取相机 0 的视口平移作为近似运动方向 —— 视口系 z 轴 = 车系前进，
+         * 所以 (t_view[0], t_view[2]) 转到车系就是前进分量。静止时
+         * 传 (0,0)，过滤器会跳过 FoE 过滤（静止没有退化方向）。
+         */
+        {
+            const nf_f32 tvz = in->t_cam[0][2];
+            const nf_f32 tvx = in->t_cam[0][0];
+            nf_voxel_filter_update_ego_motion(p->filter, tvz, -tvx);
+        }
+
+        const NFStatus fs = nf_voxel_filter_compress(
+            p->filter,
+            (const NFVoxelEntry *)p->cloud.points, p->cloud.num_points,
+            p->dvf_zmap, p->dvf_zindex, p->dvf_pts, &p->dvf_stats);
+
+        if (fs == NF_OK) {
+            /*
+             * 精简后点云回写到 out->cloud。
+             *
+             * **不能复用 p->cloud.points 的原有类型**：下游结构体是
+             * NFDownstreamPoint（10 字节），而 p->cloud 是 NFPoint（15 字节）。
+             * 这里把精简结果放在 p->dvf_pts，通过 out->grid 暴露给调用方，
+             * 原有 out->cloud 保持完整点云不变 —— 两条路并存，
+             * 下游要精简版读 grid，要全量读 cloud。
+             */
+            out->filter_enabled = 1u;
+            out->filter_stats = p->dvf_stats;
+            out->dvf_points = p->dvf_pts;
+            out->dvf_n_points = p->dvf_stats.n_output;
+            out->dvf_n_cells = p->dvf_n_cells;
+            out->dvf_zmap = p->dvf_zmap;
+            out->dvf_zindex = p->dvf_zindex;
+        }
+    }
     /* 把内部缓冲借给输出(生命周期到下一次 process) */
     out->cloud.points = p->cloud.points;
     out->cloud.num_points = p->cloud.num_points;

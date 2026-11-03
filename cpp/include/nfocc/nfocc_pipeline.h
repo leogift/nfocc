@@ -23,6 +23,7 @@
 #include "nfocc_geometry.h"
 #include "nfocc_lut.h"
 #include "nfocc_voxel.h"
+#include "nfocc_voxel_filter.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -91,6 +92,18 @@ typedef struct {
      * 设负值只为**做负对照**（验证截断真的在起作用），生产配置不该关。
      */
     nf_f32 sigma_max_cm;
+
+    /**
+     * 启用 REV-003 五阶段稠密体素精简（NEW_MOD §5）。
+     *
+     * 0 = 关闭（默认，保持旧行为）；1 = 开启，输出经过地面剥离 +
+     * 极坐标外壳 + 配额熔断，点数上限 15000。
+     *
+     * 关闭时 `out.grid` 仍会填充（REV-002 的柱状排布），只是不做精简。
+     */
+    nf_u8  enable_voxel_filter;
+    nf_u8  _pad_filter[3];
+    NFVoxelFilterConfig filter_cfg;   /**< enable_voxel_filter=1 时生效 */
 } NFPipelineConfig;
 
 /** 单帧输入 */
@@ -119,6 +132,25 @@ typedef struct {
     NFMode  dominant_mode;       /**< 主导模式(用于日志) */
     nf_u8   is_frozen;           /**< 1=本帧冻结, cloud 不可用 */
     nf_u32  frame_id;
+
+    /*
+     * ---- REV-003 五阶段精简输出（enable_voxel_filter=1 时有效）----
+     *
+     * 与 `cloud` **并存**而不是替换：`cloud` 是完整点云（15 字节/点），
+     * 这里是精简后的下游结构（10 字节/点，<= 15000）。两条路各自有用途：
+     *   - 调试/可视化用 cloud（全量）
+     *   - 下游接口用 dvf_points + dvf_zindex（配额内）
+     *
+     * 指针的生命周期到下一次 `nf_pipeline_process` 或 destroy 为止。
+     */
+    nf_u8   filter_enabled;     /**< 1=本次输出经过精简 */
+    nf_u8   _pad_dvf[3];
+    NFVoxelFilterStats filter_stats;  /**< 各阶段点数，供诊断 */
+    const NFDownstreamPoint *dvf_points;  /**< [dvf_n_points] */
+    nf_u32  dvf_n_points;       /**< 精简后点数（<= 15000） */
+    nf_u32  dvf_n_cells;        /**< 底面网格数 */
+    const nf_u32 *dvf_zmap;     /**< [dvf_n_cells] 高程位图 */
+    const nf_u32 *dvf_zindex;   /**< [dvf_n_cells+1] 前缀和 */
 } NFFrameOutput;
 
 typedef struct NFPipeline NFPipeline;

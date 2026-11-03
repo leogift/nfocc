@@ -144,6 +144,8 @@ int main(int argc, char **argv) {
     float hfov_deg = NF_V_VIEW_HFOV_DEG;
     bool no_body_mask = false;       /* --no-body-mask: 关闭 D1 */
     float sigma_max_cm = 0.0f;       /* --sigma-max: σ 截断门限(cm)，负=关闭 */
+    bool  filter_on = false;         /* --filter: 启用 REV-003 五阶段精简 */
+    nf_u32 filter_cap = 0;           /* --filter-cap: 覆盖配额(默认 15000) */
     bool d4_on = false;              /* --d4: 启用双基线 + D4 */
     float speed_kmh = 5.0f;          /* --speed: 车速, 驱动 yaw_rate 积分 */
     float yaw_rate_dps = 0.0f;       /* --yaw-rate: 偏航率 deg/s */
@@ -166,6 +168,9 @@ int main(int argc, char **argv) {
         else if (!std::strcmp(argv[i], "--no-body-mask")) no_body_mask = true;
         else if (!std::strcmp(argv[i], "--sigma-max") && i + 1 < argc)
             sigma_max_cm = (float)atof(argv[++i]);
+        else if (!std::strcmp(argv[i], "--filter")) filter_on = true;
+        else if (!std::strcmp(argv[i], "--filter-cap") && i + 1 < argc)
+            filter_cap = (nf_u32)atoi(argv[++i]);
         else if (!std::strcmp(argv[i], "--d4")) d4_on = true;
         else if (!std::strcmp(argv[i], "--speed") && i + 1 < argc) speed_kmh = (float)atof(argv[++i]);
         else if (!std::strcmp(argv[i], "--yaw-rate") && i + 1 < argc) yaw_rate_dps = (float)atof(argv[++i]);
@@ -373,6 +378,15 @@ int main(int argc, char **argv) {
 
         /* σ 硬截断门限：与 D1 无关，必须在 if/else 之外设置 */
         cfg.sigma_max_cm = sigma_max_cm;
+
+        /* REV-003 五阶段精简 */
+        if (filter_on) {
+            nf_voxel_filter_default_config(&cfg.filter_cfg);
+            if (filter_cap) cfg.filter_cfg.max_output_points = filter_cap;
+            cfg.enable_voxel_filter = 1u;
+            std::printf("REV-003 精简已启用 (配额 %u)\n",
+                        cfg.filter_cfg.max_output_points);
+        }
         std::printf("σ 截断门限 %.0f cm%s\n",
                     (double)(sigma_max_cm == 0.0f ? NF_SIGMA_MAX_CM : sigma_max_cm),
                     sigma_max_cm < 0.0f ? " (已关闭)" : "");
@@ -424,6 +438,9 @@ int main(int argc, char **argv) {
 
     double t_total = 0.0;
     nf_u32 total_points = 0;
+    nf_u8  last_filter_enabled = 0u;
+    NFVoxelFilterStats last_filter_stats;
+    std::memset(&last_filter_stats, 0, sizeof(last_filter_stats));
     for (int f = 0; f < n_frames; ++f) {
         NFFrameInput in;
         std::memset(&in, 0, sizeof(in));
@@ -461,6 +478,10 @@ int main(int argc, char **argv) {
             }
         }
         total_points += out.cloud.num_points;
+        if (out.filter_enabled) {
+            last_filter_enabled = 1u;
+            last_filter_stats = out.filter_stats;
+        }
 
         /* DEPTH_STAT: 逐帧 z 统计 —— 判断点云深度是否合理, 而不只是点数 */
         if (out.cloud.num_points > 0) {
@@ -549,6 +570,17 @@ int main(int argc, char **argv) {
     std::printf("\n--- 统计 ---\n");
     std::printf("帧数 %d, 平均耗时 %.1f ms/帧\n", n_frames,
                 n_frames ? t_total / n_frames : 0.0);
+        if (last_filter_enabled) {
+            std::printf("REV-003 精简: %u 点 -> 输出 %u 点, 占用柱体 %u%s\n",
+                        last_filter_stats.n_input, last_filter_stats.n_output,
+                        last_filter_stats.n_cells,
+                        last_filter_stats.truncated ? " (已截断)" : "");
+            std::printf("  各阶段: AABB %u -> FoE %u -> 地面 %u -> 外壳 %u\n",
+                        last_filter_stats.n_after_roi,
+                        last_filter_stats.n_after_foe,
+                        last_filter_stats.n_after_ground,
+                        last_filter_stats.n_after_shell);
+        }
         std::printf("累计点数 %u (平均 %.0f/帧)\n", total_points,
                 n_frames ? (double)total_points / n_frames : 0.0);
     const double rss2 = rss_mb();

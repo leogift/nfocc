@@ -147,6 +147,14 @@ target_link_libraries(test_newmod PRIVATE nfocc_core)
 add_test(NAME unit_newmod COMMAND test_newmod)
 set_tests_properties(unit_newmod PROPERTIES LABELS unit)
 
+
+# REV-003 五阶段稠密体素精简
+add_executable(test_voxel_filter unit/test_voxel_filter.cpp)
+target_include_directories(test_voxel_filter PRIVATE ${NF_TEST_INC})
+target_link_libraries(test_voxel_filter PRIVATE nfocc_core)
+add_test(NAME unit_voxel_filter COMMAND test_voxel_filter)
+set_tests_properties(unit_voxel_filter PROPERTIES LABELS unit)
+
 # ---------------------------------------------------------------- 系统测试
 if(TARGET nfocc_run)
   add_test(NAME system_run_synthetic
