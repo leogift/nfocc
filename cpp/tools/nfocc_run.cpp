@@ -147,6 +147,7 @@ int main(int argc, char **argv) {
     bool  filter_on = false;         /* --filter: 启用 REV-003 五阶段精简 */
     nf_u32 filter_cap = 0;           /* --filter-cap: 覆盖配额(默认 15000) */
     bool d4_on = false;              /* --d4: 启用双基线 + D4 */
+    bool bl_on = false;              /* --baseline-mgr: 启用双基线状态机 */
     float speed_kmh = 5.0f;          /* --speed: 车速, 驱动 yaw_rate 积分 */
     float yaw_rate_dps = 0.0f;       /* --yaw-rate: 偏航率 deg/s */
     std::vector<nf_u8> mask_buf;     /* D1 掩码存储，4 路连续 */
@@ -172,6 +173,7 @@ int main(int argc, char **argv) {
         else if (!std::strcmp(argv[i], "--filter-cap") && i + 1 < argc)
             filter_cap = (nf_u32)atoi(argv[++i]);
         else if (!std::strcmp(argv[i], "--d4")) d4_on = true;
+        else if (!std::strcmp(argv[i], "--baseline-mgr")) bl_on = true;
         else if (!std::strcmp(argv[i], "--speed") && i + 1 < argc) speed_kmh = (float)atof(argv[++i]);
         else if (!std::strcmp(argv[i], "--yaw-rate") && i + 1 < argc) yaw_rate_dps = (float)atof(argv[++i]);
         else if (!std::strcmp(argv[i], "--hfov") && i + 1 < argc)
@@ -378,6 +380,14 @@ int main(int argc, char **argv) {
 
         /* σ 硬截断门限：与 D1 无关，必须在 if/else 之外设置 */
         cfg.sigma_max_cm = sigma_max_cm;
+
+        /* 双基线状态机（NEW_MOD §1.1） */
+        if (bl_on) {
+            cfg.enable_baseline_mgr = 1u;
+            cfg.b_target_mm = (float)NF_B_TARGET;
+            std::printf("双基线状态机已启用 (b_target=%.0f)\n",
+                        (double)cfg.b_target_mm);
+        }
 
         /* D4 双基线交叉验证（NEW_MOD §1.3） */
         if (d4_on) {

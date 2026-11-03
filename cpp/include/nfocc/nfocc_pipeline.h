@@ -126,6 +126,26 @@ typedef struct {
      * 近场 σ 小的时候防止门限退化到 0，远场会被 2*sqrt(σ1²+σ2²) 顶上去。
      */
     nf_f32 d4_tau_min_mm;
+
+    /**
+     * 双基线状态机替代单帧门控（NEW_MOD §1.1）。
+     *
+     * 1 = 启用：用 NFBaselineManager 累积历史帧，长基线达 b_target 才产出，
+     *      纯旋转时冻结（FROZEN_ROT）。
+     * 0 = 关闭：用旧的 nf_gate_decide 单帧门控。
+     *
+     * ## 两者的本质区别
+     * 旧门控只看**当帧位移**：帧间 5km/h 走 278mm，刚够 b_min，长基线
+     * 永远用不上，深度精度被卡死在短基线上。
+     *
+     * 状态机累积**多帧位移**：同样 5km/h，等 2 帧就凑到 b_target=500mm，
+     * 精度提升约 1.8 倍。代价是要多存几帧历史。
+     */
+    nf_u8  enable_baseline_mgr;
+    nf_u8  _pad_bl[3];
+
+    /** 长基线触发目标 (mm)，0 -> NF_B_TARGET */
+    nf_f32 b_target_mm;
 } NFPipelineConfig;
 
 /** 单帧输入 */

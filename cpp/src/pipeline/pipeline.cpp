@@ -9,6 +9,7 @@
  * 未注册时 pipeline 仍可跑前向路径(不依赖引擎)。
  */
 #include "nfocc/nfocc_pipeline.h"
+#include "nfocc/nfocc_baseline.h"
 #include "nfocc/nfocc_match.h"
 #include "nfocc/nfocc_default.h"
 
@@ -84,6 +85,23 @@ struct NFPipeline {
     nf_u32            dvf_max_out;
     nf_u32            dvf_n_cells;
     NFVoxelFilterStats dvf_stats;
+
+    /*
+     * 双基线状态机（NEW_MOD §1.1）。
+     *
+     * 需要**累积绝对位姿**：状态机要比较"当前帧"与"若干帧之前的某帧"
+     * 之间的基线长度，而 pipeline 每帧只拿到相对的 t_cam。这里按
+     * t_cam 逐帧积分出 curr_pose。
+     *
+     * 精度说明：积分用的是每帧相对位移，长期会漂移（2% 量级的里程计
+     * 误差会累积）。但基线长度只用到最近几帧的相对关系，漂移可忽略。
+     */
+    NFBaselineManager baseline_mgr;
+    NFBaselinePose    curr_pose;
+    nf_u8             has_pose_init;
+    nf_u32            bl_frame_id;
+    /** cam0 本帧算出的决策，其余三路直接复用（同一辆车的同一次运动） */
+    NFBaselineDecision last_bl_dec;
 
     nf_u32           last_frame_id;
     nf_u8            has_ref;
@@ -336,6 +354,20 @@ NFStatus nf_pipeline_create(NFPipeline **pp, const NFPipelineConfig *cfg,
     st = nf_pointcloud_alloc(&p->cloud, cfg->max_points);
     if (st != NF_OK) { nf_pipeline_destroy(p); return st; }
 
+    /* 双基线状态机初始化（NEW_MOD §1.1） */
+    if (cfg->enable_baseline_mgr) {
+        const nf_f32 b_tgt = (cfg->b_target_mm > 0.0f) ? cfg->b_target_mm
+                                                       : (nf_f32)NF_B_TARGET;
+        nf_baseline_manager_init(&p->baseline_mgr, cfg->b_min_mm,
+                                 cfg->b_max_mm, b_tgt);
+        p->has_pose_init = 0u;
+        p->bl_frame_id = 0u;
+        std::memset(&p->curr_pose, 0, sizeof(p->curr_pose));
+        p->curr_pose.R[0] = p->curr_pose.R[4] = p->curr_pose.R[8] = 1.0f;
+        nf_log_msg(NF_LOG_INFO, "双基线状态机: b_min=%.0f b_target=%.0f b_max=%.0f",
+                   (double)cfg->b_min_mm, (double)b_tgt, (double)cfg->b_max_mm);
+    }
+
     /*
      * REV-003 精简器初始化（仅 enable_voxel_filter=1 时）。
      *
@@ -486,10 +518,52 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
          */
         const float *t_view = in->t_cam[c];
 
-        NFStatus st = nf_gate_decide(t_view, in->frame_gap,
-                                     p->cfg.b_min_mm, p->cfg.b_max_mm,
-                                     NF_SIGMA_STEREO_MIN, NF_SIGMA_FORWARD_MAX,
-                                     p->cfg.gap_max_frames, &dec);
+        NFStatus st = NF_OK;
+
+        if (p->cfg.enable_baseline_mgr) {
+            /*
+             * ---- 双基线状态机（NEW_MOD §1.1）----
+             *
+             * **只在 cam0 推进状态机**：状态机维护的是"自车"的历史位姿
+             * 队列，四路视口看到的是同一次自车运动。若每路各推一次，
+             * 同一帧会被记 4 遍，基线长度全错。
+             */
+            if (c == 0u) {
+                if (!p->has_pose_init) {
+                    std::memset(&p->curr_pose, 0, sizeof(p->curr_pose));
+                    p->curr_pose.R[0] = p->curr_pose.R[4] = p->curr_pose.R[8] = 1.0f;
+                    p->has_pose_init = 1u;
+                } else {
+                    /*
+                     * t_cam 是**视口系**平移（cam0 视口有 yaw 偏转），
+                     * 积分前要转回车系。视口 z 轴 = 车系 (cos yaw, sin yaw)，
+                     * 视口 x 轴 = 车系 (sin yaw, -cos yaw)。
+                     */
+                    const nf_f32 yaw = p->view_cam[0].yaw_deg * 6.2831853f / 360.0f;
+                    const nf_f32 cy = std::cos(yaw), sy = std::sin(yaw);
+                    const nf_f32 fwd = t_view[2];    /* 沿视口 z */
+                    const nf_f32 rgt = t_view[0];    /* 沿视口 x */
+                    p->curr_pose.t[0] += fwd * cy + rgt * sy;
+                    p->curr_pose.t[1] += fwd * sy - rgt * cy;
+                    p->curr_pose.t[2] += 0.0f;
+                }
+                nf_baseline_manager_push(&p->baseline_mgr, &p->curr_pose,
+                                         (nf_u64)in->frame_id * 200000ull,
+                                         in->frame_id);
+                nf_baseline_manager_decide(&p->baseline_mgr, &p->last_bl_dec);
+                ++p->bl_frame_id;
+            }
+
+            /* 状态机决策 -> 门控决策 */
+            dec.mode = p->last_bl_dec.mode;
+            dec.baseline_mm = p->last_bl_dec.baseline_mm;
+        } else {
+            st = nf_gate_decide(t_view, in->frame_gap,
+                                p->cfg.b_min_mm, p->cfg.b_max_mm,
+                                NF_SIGMA_STEREO_MIN, NF_SIGMA_FORWARD_MAX,
+                                p->cfg.gap_max_frames, &dec);
+        }
+
         if (st != NF_OK) { out->cam_status[c] = st; continue; }
         out->mode[c] = dec.mode;
 
