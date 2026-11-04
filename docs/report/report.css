@@ -1,0 +1,18 @@
+
+body{font-family:"PingFang SC",sans-serif;max-width:1200px;margin:0 auto;
+     padding:40px 56px;color:#1a2b3c;line-height:1.7;font-size:14px}
+h1{font-size:30px;border-bottom:3px solid #1e5a96;padding-bottom:12px}
+h2{font-size:20px;color:#1e5a96;margin-top:34px;border-left:4px solid #1e5a96;
+   padding-left:10px}
+h3{font-size:15px;color:#2a4a6a;margin-top:20px}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:12.5px}
+th{background:#eef4fb;border:1px solid #c8d4e0;padding:7px 9px;text-align:left}
+td{border:1px solid #dde3e8;padding:6px 9px}
+code{background:#f4f6f8;padding:1px 5px;border-radius:3px;font-size:12.5px}
+.fig{margin:18px 0;page-break-inside:avoid}
+.fig svg{width:100%;height:auto;display:block}
+.fig img{max-width:100%;height:auto}
+blockquote{border-left:4px solid #e0c060;background:#fffbea;margin:14px 0;
+           padding:10px 16px;color:#6b5300}
+@page{size:A4;margin:14mm}
+@media print{.fig{page-break-inside:avoid}}
