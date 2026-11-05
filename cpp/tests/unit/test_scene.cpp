@@ -87,7 +87,12 @@ NF_TEST(scene_ground_depth_analytic) {
         }
     }
     std::printf("      地面采样 %d 点, 最大相对误差 %.3e\n", n, max_rel);
-    NF_CHECK(n > 50);
+    /*
+     * 下限从 50 放宽到 20：2026-11 场景加了 5 个近距竖直结构后，
+     * 一部分向下射线先打到那些面而不是地面（正常遮挡），
+     * 可用的地面对照点变少。精度判据（max_rel）不变。
+     */
+    NF_CHECK(n > 20);
     NF_CHECK_MSG(max_rel < 1e-6, "地面真值必须与 H/tan(el) 闭式解吻合");
 }
 
@@ -105,20 +110,36 @@ NF_TEST(scene_raycast_down) {
     NF_CHECK_NEAR(P[2], 0.0f, 1e-3);
 }
 
-/* 打前方墙: 沿 +x 水平, 应命中 x=4000 的墙 */
+/*
+ * 打前方墙: 沿 +x 水平。
+ *
+ * **2026-11 场景加了近距竖直结构后本条要改**：x 轴上 1.2m 处有验收用的
+ * 窄障碍（plane 3），原来断言"命中 4000"不再成立 —— 求交永远取最近命中。
+ * 这里改成验两件事，都更有意义：
+ *   1. 最近命中语义：沿 +x 应命中 1200 处的 plane 3，不是 4000
+ *   2. 偏开障碍宽度后应命中 4000 处的前墙
+ */
 NF_TEST(scene_raycast_wall) {
     NFScene s;
     nf_scene_default(&s);
     const float o[3] = { 0.0f, 0.0f, 1000.0f };
+
+    /* (1) 沿 +x：应命中 1.2m 处的近距障碍（最近命中） */
     const float d[3] = { 1.0f, 0.0f, 0.0f };
     float t = 0.0f, P[3];
     nf_u32 pl = 99;
-    NFStatus st = nf_scene_raycast(&s, o, d, &t, P, &pl);
-    NF_CHECK_STATUS(st, NF_OK);
-    if (st == NF_OK) {
-        NF_CHECK_NEAR(t, 4000.0f, 1.0f);
-        NF_CHECK_EQ_INT(pl, 1);
-    }
+    NF_CHECK_STATUS(nf_scene_raycast(&s, o, d, &t, P, &pl), NF_OK);
+    NF_CHECK_NEAR(t, 1200.0f, 1.0f);
+    NF_CHECK_EQ_INT(pl, 3);
+
+    /* (2) 偏开障碍的横向范围（y=2000 超出 ±800）：应命中 4m 前墙 */
+    const float y = 2000.0f;
+    NF_CHECK_MSG(y > 800.0f, "该 y 必须在近距障碍外包框之外");
+    const float o2[3] = { 0.0f, y, 1000.0f };
+    const float d2[3] = { 1.0f, 0.0f, 0.0f };
+    NF_CHECK_STATUS(nf_scene_raycast(&s, o2, d2, &t, P, &pl), NF_OK);
+    NF_CHECK_NEAR(t, 4000.0f, 1.0f);
+    NF_CHECK_EQ_INT(pl, 1);
 }
 
 /* 朝上打: 无平面可命中, 必须返回失败而不是给出巨大深度 */

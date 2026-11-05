@@ -44,10 +44,11 @@
 
 | 文件 | 内容 |
 |---|---|
-| `report/NFOCC-工程解析报告.pdf` | 15 页：开发进展看板 / 工程架构 / 数据流 Pipeline / 算法逻辑 / 实拍图 / 已知问题 |
-| `report/ARCH-REPORT.md` | 上者正文（改内容后重跑 `tools/build_arch_report.py`） |
+| `report/NFOCC-项目总览.pdf` | 9 页：项目定位 / 业务逻辑 / 架构 / 数据流 / 算法 / 亮点 / 局限 / 进展 / 待办 / 选型权衡 |
+| `report/REPORT-FULL.md` | 上者正文源 |
 
-生成流程：`tools/shrink_report_images.py`（缩图）→ `tools/build_arch_report.py`（出 PDF）。
+生成流程：改 `report/REPORT-FULL.md` → 重跑 `tools/build_report_full.py`（程序化 SVG + pandoc + Chromium 打印）。
+7 张图全部内联 SVG，保持矢量；不依赖任何图片预处理脚本。
 
 ### 第二层：已落地的实现记录
 

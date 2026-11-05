@@ -80,20 +80,18 @@ typedef struct {
  *
  * 因此: **各引擎库导出带后缀的内部符号**, 公共名 `nf_engine_*` 由
  * `nfocc_engine_bind.h` 的 bind 函数在运行时选择, 不在链接期绑定。
- * 下面的声明保留为"单引擎直连"用法(测试里只链一个引擎时可直接调)。
+
+/*
+ * 注意：**没有** `nf_engine_init/run/deinit` 这样的无后缀自由函数。
+ *
+ * 各引擎库导出带后缀的符号（`nf_sgbm_engine_*` / `nf_model_engine_*`），
+ * 公共入口由 `nf_pipeline_bind_engine()` 在运行时选择，不在链接期绑定。
+ *
+ * 曾经这里声明过三个无后缀版本，但从未实现 —— 有工具用 `#define` 把它们
+ * 宏替换成 SGBM 版本才编得过。那等于把"声明与实现不一致"藏在宏里，
+ * 任何人照着头文件调用都会在链接期才失败。已删除。
  */
-NFStatus nf_engine_init  (NFEngineCtx **ctx, const NFEngineConfig *cfg);
-/**
- * 运行引擎。
- * @param out 输出**必须已分配**(disp/valid/conf 非 NULL), 尺寸与 left 一致
- * @return NF_E_ENGINE_RANGE 时 **out 不被写入**(S-2)
- */
-NFStatus nf_engine_run   (NFEngineCtx *ctx,
-                          const NFImageView *left,
-                          const NFImageView *right,
-                          const NFDisparityRange *range,
-                          NFDisparityMap *out);
-NFStatus nf_engine_deinit(NFEngineCtx *ctx);
+
 
 /** 预估内存(不分配), 供 init 期预算检查 (S-4) */
 NFStatus nf_engine_mem_bytes(const NFEngineConfig *cfg, nf_u32 w, nf_u32 h,

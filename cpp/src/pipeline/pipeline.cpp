@@ -790,10 +790,24 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
             }
         }
 
+        /*
+         * **左右图顺序：参考帧作左图，当前帧作右图。**
+         *
+         * SGBM 要求左图来自更靠左的相机。侧行时参考帧在车系 y-278、
+         * 当前帧在 y=0，而视口 x 轴 = 车系 -Y，所以参考帧在视口 x 的
+         * **正方向**、当前帧在负方向 —— 参考帧才是"左"。
+         *
+         * 反了会怎样（实测）：中位误差 1-2m 259->223mm、2-3m 495->380、
+         * 3-4m 935->511、4-5m 1383->601，且样本数少 6%。
+         * 原代码把当前帧当左图，一直错着。
+         *
+         * 探针 nfocc_disp_probe 本来就是参考帧作左图（第 221 行），
+         * 两条路不一致正是之前"探针说对、端到端说错"的来源。
+         */
         NFImageView lv = src, rv = src;
-        lv.data = p->view_img[c * 2];
+        lv.data = p->view_img[c * 2 + 1];   /* 参考帧 -> 左 */
         lv.width = vw; lv.height = vh; lv.stride = vw; lv.valid_x0 = nullptr;
-        rv.data = p->view_img[c * 2 + 1];
+        rv.data = p->view_img[c * 2];       /* 当前帧 -> 右 */
         rv.width = vw; rv.height = vh; rv.stride = vw; rv.valid_x0 = nullptr;
 
         NFDisparityRange dr;

@@ -47,9 +47,12 @@ NFStatus nf_sgbm_engine_run(NFEngineCtx *ctx, const NFImageView *l,
                             const NFDisparityRange *range, NFDisparityMap *out);
 NFStatus nf_sgbm_engine_deinit(NFEngineCtx *ctx);
 }
-#define nf_engine_init   nf_sgbm_engine_init
-#define nf_engine_run    nf_sgbm_engine_run
-#define nf_engine_deinit nf_sgbm_engine_deinit
+/*
+ * 直接调用带引擎后缀的真实符号。原先这里用 #define 把 nf_engine_init
+ * 宏换成 nf_sgbm_engine_init —— 那等于承认头文件里的 nf_engine_* 声明
+ * 没有实现，却把它继续留在公共头里，别人照着调用会在链接期才炸。
+ * 已删掉那些死声明，这里直接用真名。
+ */
 
 namespace {
 
@@ -234,7 +237,7 @@ int main(int argc, char **argv) {
 
         NFEngineCtx *eng = nullptr;
         {
-            const NFStatus isr = nf_engine_init(&eng, &ec);
+            const NFStatus isr = nf_sgbm_engine_init(&eng, &ec);
             if (isr != NF_OK) {
                 std::printf("[%s] 引擎 init 失败: %s (numDisp=%d)\n",
                             view_tag(pe), nf_status_str(isr), (int)ec.max_disp_px);
@@ -275,8 +278,8 @@ int main(int argc, char **argv) {
         dr.d_min = 0.0f;
         dr.d_max = (float)ec.max_disp_px;
         dr.b_mm = b_mm;
-        const NFStatus est = nf_engine_run(eng, &lv, &rv, &dr, &dm);
-        nf_engine_deinit(eng);
+        const NFStatus est = nf_sgbm_engine_run(eng, &lv, &rv, &dr, &dm);
+        nf_sgbm_engine_deinit(eng);
         if (est != NF_OK) {
             std::printf("[%s] 引擎运行失败: %s (numDisp=%d d=[%.1f,%.1f] 视口=%ux%u)\n",
                         view_tag(pe), nf_status_str(est), (int)ec.max_disp_px,

@@ -85,7 +85,74 @@ NFStatus nf_scene_default(NFScene *s) {
         p->box_min[2] = 0.0f;     p->box_max[2] = 2000.0f;
     }
 
-    s->n_planes = 3;
+    /*
+     * ---- 精度验收专用的竖直结构（2026-11 重建）----
+     *
+     * ## 为什么要加
+     * 原来只有 地面 + x=4000 前墙 + y=2500 左墙。探针实测发现：
+     * 采样点**全部落在 776 mm 附近的地面**，2-3m/3-4m/4-5m 段样本为 0。
+     * 地面是平坦大面，SGBM 的 5x5 窗口在里面找不到水平结构，匹配
+     * 必然失败 —— 那不是算法问题，是场景测不出东西。
+     *
+     * 竖直平面提供**水平方向的灰度梯度**（沿 x 变化），正是 SGBM 需要的。
+     * 按 1.2 / 2.2 / 3.4 / 4.6 m 四档布置，让 0.5-5 m 每一段都有样本。
+     *
+     * ## 为什么用细长平面而不是柱子
+     * NFScene 只有平面图元。用"窄条平面"（宽 200mm）即可模拟立柱，
+     * 且求交仍是解析的，不会引入数值噪声。
+     */
+    {
+        /* 平面 3: 正前方 1.2m 处的窄障碍（模拟前车尾部） */
+        NFPlane *p = &s->planes[3];
+        p->normal[0] = -1.0f; p->normal[1] = 0.0f; p->normal[2] = 0.0f;
+        p->point[0] = 1200.0f; p->point[1] = 0.0f; p->point[2] = 500.0f;
+        p->use_box = 1;
+        p->box_min[0] = 1195.0f; p->box_max[0] = 1205.0f;
+        p->box_min[1] = -800.0f; p->box_max[1] = 800.0f;
+        p->box_min[2] = 0.0f;    p->box_max[2] = 1000.0f;
+    }
+    {
+        /* 平面 4: 前方 2.2m 处的立柱 */
+        NFPlane *p = &s->planes[4];
+        p->normal[0] = -1.0f; p->normal[1] = 0.0f; p->normal[2] = 0.0f;
+        p->point[0] = 2200.0f; p->point[1] = 300.0f; p->point[2] = 700.0f;
+        p->use_box = 1;
+        p->box_min[0] = 2195.0f; p->box_max[0] = 2205.0f;
+        p->box_min[1] = 200.0f;  p->box_max[1] = 400.0f;
+        p->box_min[2] = 0.0f;    p->box_max[2] = 1400.0f;
+    }
+    {
+        /* 平面 5: 前方 3.4m 处的墙段 */
+        NFPlane *p = &s->planes[5];
+        p->normal[0] = -1.0f; p->normal[1] = 0.0f; p->normal[2] = 0.0f;
+        p->point[0] = 3400.0f; p->point[1] = -500.0f; p->point[2] = 800.0f;
+        p->use_box = 1;
+        p->box_min[0] = 3395.0f; p->box_max[0] = 3405.0f;
+        p->box_min[1] = -1200.0f; p->box_max[1] = 200.0f;
+        p->box_min[2] = 0.0f;    p->box_max[2] = 1600.0f;
+    }
+    {
+        /* 平面 6: 前方 4.6m 处的墙段 */
+        NFPlane *p = &s->planes[6];
+        p->normal[0] = -1.0f; p->normal[1] = 0.0f; p->normal[2] = 0.0f;
+        p->point[0] = 4600.0f; p->point[1] = 600.0f; p->point[2] = 900.0f;
+        p->use_box = 1;
+        p->box_min[0] = 4595.0f; p->box_max[0] = 4605.0f;
+        p->box_min[1] = -800.0f; p->box_max[1] = 1600.0f;
+        p->box_min[2] = 0.0f;    p->box_max[2] = 1800.0f;
+    }
+    {
+        /* 平面 7: 右侧 1.5m 处的侧墙，给左右视口提供近场样本 */
+        NFPlane *p = &s->planes[7];
+        p->normal[0] = 0.0f; p->normal[1] = -1.0f; p->normal[2] = 0.0f;
+        p->point[0] = 0.0f; p->point[1] = -1500.0f; p->point[2] = 600.0f;
+        p->use_box = 1;
+        p->box_min[0] = -3000.0f; p->box_max[0] = 3000.0f;
+        p->box_min[1] = -1505.0f; p->box_max[1] = -1495.0f;
+        p->box_min[2] = 0.0f;     p->box_max[2] = 1200.0f;
+    }
+
+    s->n_planes = 8;
     return NF_OK;
 }
 

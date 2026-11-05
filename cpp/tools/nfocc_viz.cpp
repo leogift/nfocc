@@ -36,9 +36,12 @@ NFStatus nf_sgbm_engine_run(NFEngineCtx *ctx, const NFImageView *l,
                             const NFDisparityRange *range, NFDisparityMap *out);
 NFStatus nf_sgbm_engine_deinit(NFEngineCtx *ctx);
 }
-#define nf_engine_init   nf_sgbm_engine_init
-#define nf_engine_run    nf_sgbm_engine_run
-#define nf_engine_deinit nf_sgbm_engine_deinit
+/*
+ * 直接调用带引擎后缀的真实符号。原先这里用 #define 把 nf_engine_init
+ * 宏换成 nf_sgbm_engine_init —— 那等于承认头文件里的 nf_engine_* 声明
+ * 没有实现，却把它继续留在公共头里，别人照着调用会在链接期才炸。
+ * 已删掉那些死声明，这里直接用真名。
+ */
 
 #include <cmath>
 #include <cstdio>
@@ -315,7 +318,7 @@ int main(int argc, char **argv) {
 
         /* 4) 视差 */
         NFEngineCtx *eng = nullptr;
-        if (nf_engine_init(&eng, &ec) != NF_OK) {
+        if (nf_sgbm_engine_init(&eng, &ec) != NF_OK) {
             std::printf("cam%d 引擎失败\n", c);
             nf_lut_destroy(&lut);
             continue;
@@ -398,7 +401,7 @@ int main(int argc, char **argv) {
         dm.valid = (nf_u8 *)std::calloc(npx, 1);
         dm.conf  = (nf_f32 *)std::calloc(npx, sizeof(nf_f32));
 
-        const NFStatus se = nf_engine_run(eng, &lv, &rv, &dr, &dm);
+        const NFStatus se = nf_sgbm_engine_run(eng, &lv, &rv, &dr, &dm);
         nf_u32 nval = 0;
         for (size_t q = 0; q < npx; ++q) if (dm.valid[q]) ++nval;
         std::printf("cam%d(%s) SGBM=%s d_max=%.1f 有效视差 %u (%.1f%%)\n",
@@ -540,7 +543,7 @@ int main(int argc, char **argv) {
                           tag, ne, ns, n_raw); }
 
         std::free(dm.disp); std::free(dm.valid); std::free(dm.conf);
-        nf_engine_deinit(eng);
+        nf_sgbm_engine_deinit(eng);
         nf_lut_destroy(&lut);
     }
 
