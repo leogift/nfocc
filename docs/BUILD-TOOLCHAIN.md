@@ -52,7 +52,7 @@ sudo apt install build-essential cmake pkg-config \
 | 项 | Linux | macOS |
 |---|---|---|
 | OpenMP | GCC 自带，`-fopenmp` 即可 | 需手工装 libomp |
-| 头文件目录 | `opencv4/` | `opencv5/`（OpenCV 5） |
+| 头文件目录 | `opencv4/` | `opencv4/`（`opencv@4` keg，4.14.0） |
 | RPATH | `$ORIGIN/../lib` | `@loader_path/../lib` |
 | 内存统计 | `/proc/self/statm` | `mach_task_basic_info` |
 

@@ -193,7 +193,33 @@ if(NOT NF_OMP_FOUND)
 endif()
 
 # ---------------------------------------------------------------- OpenCV
+#
+# SGBM 直接用 OpenCV 的 cv::StereoSGBM，不自己实现。
+# 版本要求 **4.x**：`nvcc`/交叉工具链下 4.x 的 ABI 更稳，且是量产基线。
+#
+# ## 为什么要显式探测 nfocc 的候选路径
+# 本机同时存在 /opt/homebrew/opt/opencv (5.0) 与 opencv@4 时，
+# `find_package(OpenCV)` 默认拿 PATH 里的那个（5.0），与本项目基线不符。
+# 5.x 把 SGBM 挪到了独立的 libopencv_stereo，4.x 还在 libopencv_calib3d 里，
+# 两者链接集不同 —— 靠 find_package 自动解析，一旦拿到 5.x 会静默改变依赖。
+# 所以这里按 NF_OPENCV_REQUIRED_MAJOR 显式核对。
 set(NF_OPENCV_FOUND OFF)
+set(NF_OPENCV_REQUIRED_MAJOR 4 CACHE STRING "要求的 OpenCV 主版本")
+
+if(NOT DEFINED OpenCV_DIR AND NF_OPENCV_REQUIRED_MAJOR STREQUAL "4")
+  # 优先已安装的 opencv@4 keg
+  foreach(_cv_hint
+          "/opt/homebrew/opt/opencv@4/lib/cmake/opencv4"
+          "/usr/local/opt/opencv@4/lib/cmake/opencv4"
+          "/usr/lib/aarch64-linux-gnu/cmake/opencv4"
+          "/usr/lib/x86_64-linux-gnu/cmake/opencv4")
+    if(EXISTS "${_cv_hint}/OpenCVConfig.cmake")
+      set(OpenCV_DIR "${_cv_hint}" CACHE PATH "" FORCE)
+      break()
+    endif()
+  endforeach()
+endif()
+
 if(NF_DEPS STREQUAL "vendored")
   if(EXISTS "${NF_THIRD_PARTY_DIR}/opencv/lib")
     list(APPEND CMAKE_PREFIX_PATH "${NF_THIRD_PARTY_DIR}/opencv")
@@ -201,7 +227,16 @@ if(NF_DEPS STREQUAL "vendored")
 endif()
 find_package(OpenCV QUIET)
 if(OpenCV_FOUND)
+  string(REGEX MATCH "^([0-9]+)" _cv_major "${OpenCV_VERSION}")
+  if(NOT _cv_major STREQUAL NF_OPENCV_REQUIRED_MAJOR)
+    message(WARNING
+      "NFOCC: 找到 OpenCV ${OpenCV_VERSION}，但本项目基线是 "
+      "${NF_OPENCV_REQUIRED_MAJOR}.x。SGBM 接口一致，但链接库集合不同 "
+      "(5.x 的 SGBM 在 libopencv_stereo，4.x 在 libopencv_calib3d)。"
+      "如果这是有意的，请显式传 -DNF_OPENCV_REQUIRED_MAJOR=${_cv_major}")
+  endif()
   set(NF_OPENCV_FOUND ON)
+  message(STATUS "NFOCC: OpenCV ${OpenCV_VERSION} (${OpenCV_DIR})")
 endif()
 
 # ---------------------------------------------------------------- ZeroMQ
