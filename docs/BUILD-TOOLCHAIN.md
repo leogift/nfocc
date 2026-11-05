@@ -218,6 +218,29 @@ python3 tools/sync_third_party.py            # 拷贝，424 MB
 **软链模式改的是系统库吗**：不是。`--link` 时脚本会**跳过** `install_name` 改写，
 否则通过软链改的就是 Homebrew 的原库（破坏性）。脚本里有这条保护并实测过。
 
+### vcam（预编译成静态库放进工程）
+
+vcam 是外部源码工程（`/Volumes/Workspace/virtualcamera`），NFOCC 要求它
+**以预编译静态库的形式**进入 `third_party/`，与 OpenCV/ZeroMQ/ORT 一致：
+
+```bash
+python3 tools/sync_vcam.py                        # 默认路径
+python3 tools/sync_vcam.py --src /path/to/cpp     # 指定源码
+```
+
+脚本做四件事：编 `vcam_core` → 复制 `libvcam_core.a`（29 KB）与 5 个头文件
+→ 生成 `vcam.cmake` → 记录 `VERSION.txt`。
+
+CMake **优先**用 `third_party/vcam/lib/libvcam_core.a`（imported target），
+找不到才回退 `add_subdirectory` 编源码。这样交付物是自包含的：
+不依赖外部工程目录是否存在。
+
+验证链接真的生效（不只看 CMake 消息）：
+
+```bash
+nm build/nfocc_run | grep vc_cam_project    # 应能看到符号
+```
+
 **RPATH**：`cmake/nf_deps.cmake` 给可执行文件写相对 RPATH
 （macOS `@loader_path/../lib`，Linux `$ORIGIN/../lib`），
 `otool -l` 可验证已写入。

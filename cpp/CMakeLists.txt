@@ -134,18 +134,37 @@ endif()
 
 if(NF_WITH_VCAM)
 
-  # vcam 的核心库零三方依赖，这里关掉它的工具层，避免拉进 OpenCV
-  set(VCAM_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
-  set(VCAM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-  add_subdirectory("${NF_VCAM_DIR}" "${CMAKE_BINARY_DIR}/vcam" EXCLUDE_FROM_ALL)
+  # 优先用 third_party/vcam 下的**预编译库**（由 tools/sync_vcam.py 生成）；
+  # 没有时才回退到 add_subdirectory 编源码。
+  #
+  # 为什么优先预编译：NFOCC 的其它三方件（OpenCV/ZeroMQ/ORT）也都是
+  # third_party 下的预编译产物，统一起来交叉编译时只有一条路径要维护。
+  set(_vcam_prebuilt "${CMAKE_CURRENT_SOURCE_DIR}/third_party/vcam/lib/libvcam_core.a")
 
-  if(TARGET vcam_core)
+  if(EXISTS "${_vcam_prebuilt}")
     set(NF_VCAM_FOUND ON)
-    target_link_libraries(nfocc_core PUBLIC vcam_core)
+    add_library(nf_vcam STATIC IMPORTED)
+    set_target_properties(nf_vcam PROPERTIES
+      IMPORTED_LOCATION "${_vcam_prebuilt}"
+      INTERFACE_INCLUDE_DIRECTORIES
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/vcam/include")
+    target_link_libraries(nfocc_core PUBLIC nf_vcam)
     target_compile_definitions(nfocc_core PUBLIC NF_WITH_VCAM=1)
-    message(STATUS "NFOCC: vcam 后端已启用 <- ${NF_VCAM_DIR}")
+    message(STATUS "NFOCC: vcam 后端 <- third_party/vcam (预编译)")
   else()
-    message(FATAL_ERROR "vcam 子工程没有产出 vcam_core 目标")
+    message(STATUS "NFOCC: third_party/vcam 未找到，从源码编")
+    set(VCAM_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+    set(VCAM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    add_subdirectory("${NF_VCAM_DIR}" "${CMAKE_BINARY_DIR}/vcam" EXCLUDE_FROM_ALL)
+
+    if(TARGET vcam_core)
+      set(NF_VCAM_FOUND ON)
+      target_link_libraries(nfocc_core PUBLIC vcam_core)
+      target_compile_definitions(nfocc_core PUBLIC NF_WITH_VCAM=1)
+      message(STATUS "NFOCC: vcam 后端 <- ${NF_VCAM_DIR} (源码)")
+    else()
+      message(FATAL_ERROR "vcam 子工程没有产出 vcam_core 目标")
+    endif()
   endif()
 else()
   message(STATUS "NFOCC: vcam 后端关闭 (NF_WITH_VCAM=OFF)")

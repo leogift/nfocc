@@ -5,3 +5,4 @@ libomp
 zeromq
 onnxruntime
 opencv
+vcam

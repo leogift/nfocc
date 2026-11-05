@@ -1,0 +1,4 @@
+vcam 1.0.0
+source: /Volumes/Workspace/virtualcamera/cpp
+lib: 29 KB
+built by: tools/sync_vcam.py
