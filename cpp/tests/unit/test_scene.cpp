@@ -7,6 +7,7 @@
  */
 #include "nf_test.h"
 #include "nfocc/nfocc_scene.h"
+#include "nfocc/nfocc_vcam_bridge.h"
 #include "nfocc/nfocc_scene_render.h"
 #include "nfocc/nfocc_camera.h"
 #include "nfocc/nfocc_default.h"
@@ -173,7 +174,9 @@ NF_TEST(render_depth_matches_raycast) {
             if (z <= 0.0f) continue;
             /* 重算: 像素 -> 相机系射线 -> 车系 -> 求交 */
             float dc[3];
-            if (nf_cam_unproject_c(&cam, (nf_f32)x + 0.5f, (nf_f32)y + 0.5f, dc) != NF_OK)
+            nf_u8 conv = 0;
+            if (nf_vcam_unproject(&cam, (nf_f32)x + 0.5f, (nf_f32)y + 0.5f,
+                                  dc, nullptr, &conv) != NF_OK || !conv)
                 continue;
             float dw[3];
             for (int k = 0; k < 3; ++k)

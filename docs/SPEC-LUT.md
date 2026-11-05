@@ -56,7 +56,7 @@
 | 60° | 173 mm | 16.00 px |
 
 **实现**：`pixel_to_ray_impl` 输出视口系射线后，绕相机 y 轴旋转
-`vp->yaw_offset_deg`，再送 `nf_cam_project_c`。相机不动，只是换采样方向。
+`vp->yaw_offset_deg`，再送 `nf_vcam_project`。相机不动，只是换采样方向。
 
 ```
 ray = (sin(az)·cos(el), sin(el), cos(az)·cos(el))

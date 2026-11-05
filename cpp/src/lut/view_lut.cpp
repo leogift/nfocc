@@ -306,25 +306,14 @@ NFStatus nf_lut_build(NFViewLut *lut, const NFCameraModel *cam,
 
             float uf, vf;
             nf_u8 ok = 0;
-            /**
-             * 投影后端：默认走 NFOCC 原生 `nf_cam_project_c`。
+            /*
+             * 投影只有一个后端：vcam（原生实现已于 2026-11 删除）。
              *
-             * `NF_WITH_VCAM=1` 时改走 vcam 的 `vc_cam_project`。
-             * 两条路已验证一致（`test_vcam_bridge`：radial_poly 0.117 px、
-             * KB 0.190 px，门限 0.5 px）。
-             *
-             * **vcam 不可用时自动回退**，不返回错误 —— LUT 构建是主链，
-             * 可选后端的缺失不该让整个 pipeline 失败。
+             * 不支持的模型类型不再"回退到另一份实现"，而是把该像素判无效 ——
+             * 宁可少一点有效像素，也不要悄悄换一套几何算出来的坐标混进去。
+             * 新增模型时应先让 vcam 支持，再在这里启用。
              */
-#ifdef NF_WITH_VCAM
             st = nf_vcam_project(cam, rc[0], rc[1], rc[2], &uf, &vf, &ok);
-            if (st == NF_E_ENGINE_UNSUPPORTED) {
-                /* 该模型 vcam 不支持（如未来新增的类型）-> 回退原生 */
-                st = nf_cam_project_c(cam, rc[0], rc[1], rc[2], &uf, &vf, &ok);
-            }
-#else
-            st = nf_cam_project_c(cam, rc[0], rc[1], rc[2], &uf, &vf, &ok);
-#endif
             if (st != NF_OK) { st = NF_OK; ok = 0; }
 
             /**
@@ -336,7 +325,7 @@ NFStatus nf_lut_build(NFViewLut *lut, const NFCameraModel *cam,
              *
              * 实测: 偏 45° 时 960x258 视口里有 825 个采样点(约 5%)
              * 的 d_view_z < 0。此前 LUT 仍标它们有效, 因为
-             * nf_cam_project_c 只看方向是否能投到鱼眼上, 不管朝向。
+             * 投影只看方向是否能投到鱼眼上, 不管朝向。
              *
              * 几何依据: rp 是视口系方向, rp[2] 即其朝前的分量。
              * rp[2] <= 0 意味着该像素对应的"视口视线"背离视口,
@@ -567,7 +556,8 @@ NFStatus nf_mask_build_vehicle(const NFCameraModel *cam, const NFPose *pose,
 
             float uf = 0.0f, vf = 0.0f;
             nf_u8 ok = 0;
-            nf_cam_project_c(cam, rc[0], rc[1], rc[2], &uf, &vf, &ok);
+            /* D1 掩码的多边形顶点同样走 vcam 投影 */
+            (void)nf_vcam_project(cam, rc[0], rc[1], rc[2], &uf, &vf, &ok);
             if (!ok) {
                 /**
                  * 投影失败的顶点**不能简单跳过** —— 跳过会让多边形

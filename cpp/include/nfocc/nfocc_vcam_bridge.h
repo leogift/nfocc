@@ -45,7 +45,7 @@ NFVcamBackend nf_vcam_backend(void);
 /**
  * 用 vcam 的相机模型做**相机系射线 -> 像素**投影。
  *
- * 与 `nf_cam_project_c` 语义相同（落在图像外或后半球返回 ok=0），
+ * 与已删除的原生实现语义相同（落在图像外或后半球返回 ok=0），
  * 但内部走 vcam 的 `vc_cam_project`。
  *
  * @return NF_OK 正常（即使 ok=0）；vcam 不可用时返回

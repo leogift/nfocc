@@ -109,21 +109,20 @@ NF_TEST(vcam_invalid_consistency) {
     }
     const NFCameraModel cam = make_kb(550.0f);
 
-    /* 光轴后方：Z<0，必然不可见 */
+    /*
+     * 原生实现已删，这里只验 vcam 的不可见判定。
+     * 判据是"后半球必须 ok=0" —— 少了它，反投影会在车后造出镜像点。
+     */
     nf_f32 u = 0, v = 0;
-    nf_u8 ok_nf = 1, ok_vc = 1;
-    NF_CHECK_STATUS(nf_cam_project_c(&cam, 0.0f, 0.0f, -1000.0f, &u, &v, &ok_nf), NF_OK);
+    nf_u8 ok_vc = 1;
     const NFStatus st = nf_vcam_project(&cam, 0.0f, 0.0f, -1000.0f, &u, &v, &ok_vc);
     NF_CHECK_STATUS(st, NF_OK);
-    NF_CHECK_EQ_INT(ok_nf, 0);
     NF_CHECK_EQ_INT(ok_vc, 0);
 
-    /* 光轴前方：都应为有效 */
+    /* 光轴前方：应为有效 */
     float u2 = 0, v2 = 0;
-    nf_u8 ok_nf2 = 0, ok_vc2 = 0;
-    nf_cam_project_c(&cam, 0.0f, 0.0f, 1000.0f, &u2, &v2, &ok_nf2);
+    nf_u8 ok_vc2 = 0;
     nf_vcam_project(&cam, 0.0f, 0.0f, 1000.0f, &u2, &v2, &ok_vc2);
-    NF_CHECK_EQ_INT(ok_nf2, 1);
     NF_CHECK_EQ_INT(ok_vc2, 1);
 }
 

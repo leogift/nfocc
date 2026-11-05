@@ -114,8 +114,8 @@ P0 阶段只做 L0 + L1。
 
 | 函数 | 判据 | 正例 | 负例（必须失败） | 级别 |
 |---|---|---|---|---|
-| `nf_cam_project` | 投影结果与解析期望误差 < 1e-6 px | 光轴点 → `(cx,cy)` | `R` 转置后传 → 偏离主点 | L0 |
-| `nf_cam_unproject` | 与 `nf_cam_project` 往返 < 0.01 px | 随机内点 | 传 `r_d·f > r_valid` → `NF_E_CAM_OUT_OF_VALID` | L0 |
+| `nf_vcam_project` | 光轴点投到 `(cx,cy)`，误差 < 1e-3 px | 光轴点 | 外参未转到相机系 | L0 |
+| `nf_vcam_unproject` | 与 `nf_vcam_project` 往返 < 0.01 px；且射线夹角与 `rho=Σkᵢθⁱ` 反解一致 | 随机内点 | 传 `r_d·f > r_valid` → `ok=0` | L0 |
 | `nf_lut_build` | LUT 每格都能反查出唯一鱼眼坐标；有效性位与 `r_valid` 一致 | 标准视口 | `k1` 取负使 `θ_d` 非单调 → `NF_E_CAM_DISTORT_INV` | L0 |
 | `nf_view_warp` | 输出图与输入图在有效区内的亮度相关系数 > 0.999 | 合成场景 | 视口尺寸非自洽 → `NF_E_PARAM_RANGE` | L1 |
 | `nf_engine_init` | 参数不合时拒绝 | 正常配置 | `numDisp` 非 16 倍数 → `NF_E_PARAM_RANGE` | L0 |

@@ -3,6 +3,7 @@
  * @brief 解析场景渲染。每个像素沿真实相机射线求交，写入灰度与真值 Z。
  */
 #include "nfocc/nfocc_scene_render.h"
+#include "nfocc/nfocc_vcam_bridge.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -49,12 +50,14 @@ NFStatus nf_render_frame(const NFScene *scene, const NFCameraModel *cam,
         for (nf_u32 x = 0; x < w; ++x) {
             const nf_u32 idx = y * w + x;
 
-            /* 像素 -> 相机系单位射线（用真实 KB 反投影，含畸变） */
+            /* 像素 -> 相机系单位射线（走 vcam，原生实现已删除） */
             float dc[3];
+            nf_u8 conv = 0;
             /* 像素中心在 (x+0.5, y+0.5)，与标定一致 */
-            NFStatus st_r = nf_cam_unproject_c(cam, (nf_f32)x + 0.5f,
-                                               (nf_f32)y + 0.5f, dc);
-            if (st_r != NF_OK) {
+            NFStatus st_r = nf_vcam_unproject(cam, (nf_f32)x + 0.5f,
+                                              (nf_f32)y + 0.5f, dc,
+                                              nullptr, &conv);
+            if (st_r != NF_OK || !conv) {
                 frame->img[idx] = kNoHit;
                 frame->depth[idx] = 0.0f;
                 continue;

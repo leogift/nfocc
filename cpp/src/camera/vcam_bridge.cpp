@@ -103,7 +103,7 @@ NFStatus nf_vcam_project(const NFCameraModel *cam, nf_f32 X, nf_f32 Y, nf_f32 Z,
      * vcam 的 `vc_project_fisheye` 用 `atan2(r_xy, Z)` 求入射角，
      * Z<0 时给出钝角 —— 数学上正确（鱼眼确实能拍到后半球），
      * 但 **NFOCC 的可见性判据是 `theta <= max_theta`**
-     * （见 `nf_cam_project_c` 的 ok 条件），不是 Z>0。
+     * （已删除的原生实现里同一条判据），不是 Z>0。
      *
      * 实测差异：X=Y=0, Z=-1000 时
      *   NFOCC: theta = atan2(0,-1000) = π ≈ 3.14 > max_theta(1.9) -> 无效
@@ -118,7 +118,7 @@ NFStatus nf_vcam_project(const NFCameraModel *cam, nf_f32 X, nf_f32 Y, nf_f32 Z,
         /**
          * **r_img 的量纲要按 NFOCC 的约定算**。
          *
-         * `nf_cam_project_c` 里 `rho = nf_cam_theta_d(cam, theta)` 返回的是
+         * 原生实现里 `rho = nf_cam_theta_d(cam, theta)` 返回的是
          * **归一化**角度（KB: theta + k1θ³...，RADIAL_POLY: 除以 k1 后的值），
          * 然后 `r_img = K * rho` 才得到像素半径。
          *
@@ -170,12 +170,21 @@ NFStatus nf_vcam_crosscheck(const NFCameraModel *cam, nf_u32 n_samples,
     *out_max_dev_px = -1.0f;
     if (out_n_compared) *out_n_compared = 0;
 
-    /* 在图像上取 n x n 网格（n_samples 是总点数，向上取整到方阵） */
-    nf_u32 side = (nf_u32)std::ceil(std::sqrt((double)n_samples));
-    if (side < 1) side = 1;
+    /*
+     * 基准改成**解析几何真值**，不再对拍原生实现（已删除）。
+     *
+     * 理由不只是"没有第二份实现可用"：两套都自己维护的实现在同一处
+     * 理解错时对比会双双通过，基准本身不可信。这里用的是模型定义式：
+     *   像素归一化半径 rho = |(u,v)-(cx,cy)| / K
+     *   反解 theta 后，vcam 给的射线与光轴夹角必须等于这个 theta
+     * 任何一边写错都会露出来。
+     */
+    const nf_u32 side = (nf_u32)std::ceil(std::sqrt((double)n_samples));
+    if (side < 1) return NF_E_PARAM_RANGE;
 
-    /* NFOCC 的 NFCameraModel 不含图像尺寸，用 r_valid 作采样半径 */
     const float rc = (cam->r_valid > 0.0f) ? cam->r_valid : 800.0f;
+    const float K  = (cam->kind == NF_CAM_MODEL_KB) ? cam->f : cam->k1;
+    if (!(K > 0.0f)) return NF_E_CAM_NOT_CALIBRATED;
 
     float max_dev = 0.0f;
     nf_u32 compared = 0;
@@ -184,34 +193,36 @@ NFStatus nf_vcam_crosscheck(const NFCameraModel *cam, nf_u32 n_samples,
         for (nf_u32 ix = 0; ix < side; ++ix) {
             const float fu = (side > 1) ? (float)ix / (float)(side - 1) : 0.5f;
             const float fv = (side > 1) ? (float)iy / (float)(side - 1) : 0.5f;
-
-            /* 采样点覆盖整个有效圆 */
             const float u = cam->cx + (fu * 2.0f - 1.0f) * rc;
             const float v = cam->cy + (fv * 2.0f - 1.0f) * rc;
 
-            /* 两条路各自 unproject 出射线，再各自 project 回去，比像素差 */
-            float r_a[3] = { 0, 0, 0 }, r_b[3] = { 0, 0, 0 };
-            nf_u8 ok_a = 0, ok_b = 0;
-            if (nf_cam_unproject_c(cam, u, v, r_a) != NF_OK) continue;
-            if (nf_vcam_unproject(cam, u, v, r_b, nullptr, &ok_b) != NF_OK) continue;
-            if (!ok_b) continue;
+            const float du = u - cam->cx, dv = v - cam->cy;
+            const float rho_px = std::sqrt(du * du + dv * dv) / K;
 
-            /* 两条射线的夹角（度）—— 比再投影更直接反映模型差异 */
-            const float dot = r_a[0]*r_b[0] + r_a[1]*r_b[1] + r_a[2]*r_b[2];
-            const float ang = std::acos(dot > 1.0f ? 1.0f : (dot < -1.0f ? -1.0f : dot));
-            /* 折算成像素：用该点附近的局部焦距 */
-            const float f_scale = (cam->kind == NF_CAM_MODEL_KB)
-                                ? cam->f : cam->k1;
-            const float dev_px = std::fabs(ang) * f_scale;
+            float r[3] = { 0, 0, 0 };
+            nf_u8 conv = 0;
+            if (nf_vcam_unproject(cam, u, v, r, nullptr, &conv) != NF_OK) continue;
+            if (!conv) continue;
+
+            nf_i32 ok = 0;
+            const float th_ref = nf_cam_rho_to_theta(cam, rho_px, &ok);
+            if (!ok) continue;
+
+            const float cz = (r[2] > 1.0f) ? 1.0f : ((r[2] < -1.0f) ? -1.0f : r[2]);
+            const float th_ray = std::acos(cz);
+            const float dth    = std::fabs(th_ray - th_ref);
+            const float drho   = nf_cam_theta_d_prime(cam, th_ref);
+            const float dev_px = dth * drho * K;
+
+            if (!std::isfinite(dev_px)) continue;
             if (dev_px > max_dev) max_dev = dev_px;
             ++compared;
-            (void)ok_a;
         }
     }
 
     *out_max_dev_px = max_dev;
     if (out_n_compared) *out_n_compared = compared;
-    return (compared > 0) ? NF_OK : NF_E_CAM_NOT_CALIBRATED;
+    return (compared > 0) ? NF_OK : NF_E_PARAM_RANGE;
 }
 
 #else /* !NF_WITH_VCAM —— 桩实现 */

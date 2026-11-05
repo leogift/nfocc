@@ -89,36 +89,21 @@ NFStatus nf_cam_validate(const NFCameraModel *cam);
  *  @return NF_OK / NF_E_EXTRINSIC_INVALID */
 NFStatus nf_pose_validate(const NFPose *pose);
 
-/* -------------------------------------------------------------- 投影 */
-/**
- * 3D 点 (V 系, mm) -> 像素。
- * @param uv  输出 [2]; 无效时写 NaN
- * @param valid 输出 [1]; 1=有效
- * @return NF_OK 或错误码。**超出 r_valid/max_theta 不算错误**, 只置 valid=0
- *         (逐点失效用掩码, 不用状态码 —— SPEC-ICD §7 的 nf_triangulate 语义)。
+/*
+ * 投影与反投影**不在本库实现** —— 统一走 vcam（见 nfocc_vcam_bridge.h）。
+ *
+ * 2026-11 决策：原生实现（nf_cam_project_c / nf_cam_unproject_c 及带外参
+ * 的 nf_cam_project / nf_cam_unproject）已删除。理由：
+ *   1. 两套实现必然漂移，而 vcam 有独立的测试与迭代
+ *   2. vcam 已编成静态库纳入 third_party，不依赖外部工程目录
+ *   3. 交叉校验的唯一价值是"换后端时对比"，但两套都自己维护时
+ *      基准也是自己写的，对照意义有限 —— 改用解析几何真值做基准
+ *      （见 tests/unit/test_vcam_bridge.cpp）
+ *
+ * 仍保留在这里的是**模型本身的数学定义**：theta_d / rho_to_theta 是
+ * `rho = Σkᵢθⁱ` 的直接表达，LUT 构建（view_lut.cpp）与自检要用，
+ * 与 vcam 无关。
  */
-NFStatus nf_cam_project(const NFCameraModel *cam, const NFPose *pose,
-                        const NFPoint3f *P_V,
-                        nf_f32 *uv, nf_u8 *valid);
-
-/**
- * 像素 -> 单位射线 (V 系)。
- * @param ray 输出 [3], 单位向量
- * @return NF_E_CAM_DISTORT_INV 表示 Newton 不收敛
- */
-NFStatus nf_cam_unproject(const NFCameraModel *cam, const NFPose *pose,
-                          nf_f32 u, nf_f32 v,
-                          nf_f32 *ray);
-
-/* ------------------------------------------------- 内部: 相机系下的一步 */
-/** 相机系 3D -> 像素 (不含外参) */
-NFStatus nf_cam_project_c(const NFCameraModel *cam,
-                          nf_f32 x, nf_f32 y, nf_f32 z,
-                          nf_f32 *u, nf_f32 *v, nf_u8 *valid);
-/** 像素 -> 相机系单位射线 (不含外参) */
-NFStatus nf_cam_unproject_c(const NFCameraModel *cam,
-                            nf_f32 u, nf_f32 v,
-                            nf_f32 *ray);
 
 /** theta_d(theta) 及其导数, 供 LUT 构建与自检使用 */
 nf_f32 nf_cam_theta_d(const NFCameraModel *cam, nf_f32 theta);

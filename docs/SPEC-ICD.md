@@ -270,10 +270,15 @@ typedef struct {
 
 ## 7. 函数清单（全部需要实现的接口）
 
+> **2026-11 变更**：原生的 `nf_cam_project` / `nf_cam_unproject`（含 `_c` 变体）
+> 已删除，投影与反投影统一走 vcam（`nfocc_vcam_bridge.h`）。
+> 只保留模型本身的数学定义 `nf_cam_theta_d` / `nf_cam_rho_to_theta`，
+> LUT 构建与自检要用。带外参的版本由调用方先做 `v_cam = Rᵀ(P − t)` 再投。
+
 | 函数 | 输入 | 输出 | 可能返回的失败码 |
 |---|---|---|---|
-| `nf_cam_project` | `NFCameraModel`, `NFPose`, `P_V` | `(u,v)`, 有效标志 | `NF_E_CAM_OUT_OF_VALID`, `NF_E_CAM_DISTORT_INV` |
-| `nf_cam_unproject` | `NFCameraModel`, `NFPose`, `(u,v)` | 单位射线 (V 系) | 同上 |
+| `nf_vcam_project` | `NFCameraModel`, 相机系 `(x,y,z)` | `(u,v)`, 有效标志 | `NF_E_ENGINE_UNSUPPORTED` |
+| `nf_vcam_unproject` | `NFCameraModel`, `(u,v)` | 单位射线 (相机系), 收敛标志 | 同上 |
 | `nf_lut_build` | `NFCameraModel`, `NFPose`, 视口参数, `t_dir` | LUT + 有效性 | `NF_E_CAM_DISTORT_INV`, `NF_E_PARAM_RANGE` |
 | `nf_view_warp` | 原图 + LUT | `NFImageView`（极线对齐视口图） | `NF_E_PARAM_RANGE` |
 | `nf_engine_init/run/deinit` | 见 `SPEC-ENGINE` | `NFDisparityMap` | `NF_E_ENGINE_*` |

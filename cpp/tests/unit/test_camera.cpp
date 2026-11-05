@@ -4,6 +4,7 @@
  */
 #include "nf_test.h"
 #include "nfocc/nfocc_camera.h"
+#include "nfocc/nfocc_vcam_bridge.h"
 #include "nfocc/nfocc_default.h"
 
 #include <cmath>
@@ -60,8 +61,16 @@ NF_TEST(co3_axis_to_principal) {
     P.y = pose.t[1];
     P.z = pose.t[2];
 
+    /* 带外参的投影已删（统一走 vcam）。这里手工做 车系->相机系 再投影，
+       顺便验证了外参约定 v_cam = R^T (P - t)。 */
+    const float d[3] = { P.x - pose.t[0], P.y - pose.t[1], P.z - pose.t[2] };
+    float pc[3];
+    for (int k = 0; k < 3; ++k)
+        pc[k] = pose.R[0*3+k]*d[0] + pose.R[1*3+k]*d[1] + pose.R[2*3+k]*d[2];
+
     nf_f32 uv[2]; nf_u8 ok = 0;
-    NF_CHECK_STATUS(nf_cam_project(&cam, &pose, &P, uv, &ok), NF_OK);
+    NF_CHECK_STATUS(nf_vcam_project(&cam, pc[0], pc[1], pc[2],
+                                    &uv[0], &uv[1], &ok), NF_OK);
     NF_CHECK_EQ_INT(ok, 1);
     NF_CHECK_NEAR(uv[0], cam.cx, 1e-3f);
     NF_CHECK_NEAR(uv[1], cam.cy, 1e-3f);
@@ -71,12 +80,12 @@ NF_TEST(co3_axis_to_principal) {
 NF_TEST(co4_axes_not_flipped) {
     NFCameraModel cam = default_cam();
     nf_f32 u = 0, v = 0; nf_u8 ok = 0;
-    NF_CHECK_STATUS(nf_cam_project_c(&cam, 0.0f, 100.0f, 1000.0f,
+    NF_CHECK_STATUS(nf_vcam_project(&cam, 0.0f, 100.0f, 1000.0f,
                                      &u, &v, &ok), NF_OK);
     NF_CHECK_EQ_INT(ok, 1);
     NF_CHECK_MSG(v > NF_INF_CY, "相机 +y 应投影到 v > cy");
 
-    NF_CHECK_STATUS(nf_cam_project_c(&cam, 100.0f, 0.0f, 1000.0f,
+    NF_CHECK_STATUS(nf_vcam_project(&cam, 100.0f, 0.0f, 1000.0f,
                                      &u, &v, &ok), NF_OK);
     NF_CHECK_MSG(u > NF_INF_CX, "相机 +x 应投影到 u > cx");
 }
@@ -96,10 +105,10 @@ NF_TEST(co2_roundtrip) {
             const float v = cam.cy + radii[i] * std::sin(ang);
 
             float ray[3];
-            NF_CHECK_STATUS(nf_cam_unproject_c(&cam, u, v, ray), NF_OK);
+            NF_CHECK_STATUS(nf_vcam_unproject(&cam, u, v, ray, nullptr, nullptr), NF_OK);
 
             float u2, v2; nf_u8 ok = 0;
-            NF_CHECK_STATUS(nf_cam_project_c(&cam, ray[0], ray[1], ray[2],
+            NF_CHECK_STATUS(nf_vcam_project(&cam, ray[0], ray[1], ray[2],
                                              &u2, &v2, &ok), NF_OK);
             if (!ok) continue;   /* 超出 r_valid 的边界点 */
             const float e = std::sqrt((u2-u)*(u2-u) + (v2-v)*(v2-v));
@@ -150,13 +159,13 @@ NF_TEST(max_theta_too_small) {
     cam.max_theta = 1.65f;
     nf_f32 u, v; nf_u8 ok = 0;
     const float th = 100.0f * 3.14159265f / 180.0f;
-    NF_CHECK_STATUS(nf_cam_project_c(&cam, std::sin(th), 0.0f, std::cos(th),
+    NF_CHECK_STATUS(nf_vcam_project(&cam, std::sin(th), 0.0f, std::cos(th),
                                      &u, &v, &ok), NF_OK);
     NF_CHECK_EQ_INT(ok, 0);   /* 应为无效 */
 
     /* 用正确的 2.235rad 则有效 */
     cam.max_theta = 2.235f;
-    NF_CHECK_STATUS(nf_cam_project_c(&cam, std::sin(th), 0.0f, std::cos(th),
+    NF_CHECK_STATUS(nf_vcam_project(&cam, std::sin(th), 0.0f, std::cos(th),
                                      &u, &v, &ok), NF_OK);
     NF_CHECK_MSG(ok == 1, "max_theta=2.235 时 100° 应有效");
 }
@@ -177,9 +186,7 @@ NF_TEST(theta_d_prime_coeffs) {
 NF_TEST(cam_null_safety) {
     NF_CHECK_STATUS(nf_cam_validate(nullptr), NF_E_PARAM_NULL);
     NF_CHECK_STATUS(nf_pose_validate(nullptr), NF_E_PARAM_NULL);
-    NF_CHECK_STATUS(nf_cam_project(nullptr, nullptr, nullptr, nullptr, nullptr),
-                    NF_E_PARAM_NULL);
-    NF_CHECK_STATUS(nf_cam_unproject_c(nullptr, 0, 0, nullptr), NF_E_PARAM_NULL);
+    NF_CHECK_STATUS(nf_vcam_unproject(nullptr, 0, 0, nullptr, nullptr, nullptr), NF_E_PARAM_NULL);
 
     NFCameraModel cam = default_cam();
     cam.version = 999;

@@ -8,6 +8,7 @@
 #include "nf_test.h"
 #include "nfocc/hanqtech_loader.h"
 #include "nfocc/nfocc_camera.h"
+#include "nfocc/nfocc_vcam_bridge.h"
 
 #include <cmath>
 #include <cstdio>
@@ -133,7 +134,7 @@ NF_TEST(ws_project_into_image) {
 
     float u = 0, v = 0;
     nf_u8 ok = 0;
-    NF_CHECK_STATUS(nf_cam_project_c(&c.cam[0], dc[0], dc[1], dc[2], &u, &v, &ok),
+    NF_CHECK_STATUS(nf_vcam_project(&c.cam[0], dc[0], dc[1], dc[2], &u, &v, &ok),
                     NF_OK);
     std::printf("      投影到 (%.1f, %.1f) ok=%d\n", (double)u, (double)v, (int)ok);
     NF_CHECK(ok == 1);

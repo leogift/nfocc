@@ -28,6 +28,7 @@
 #include "nfocc/nfocc_lut.h"
 #include "nfocc/nfocc_scene.h"
 #include "nfocc/nfocc_scene_render.h"
+#include "nfocc/nfocc_vcam_bridge.h"
 #include "nfocc/nfocc_viewplan.h"
 
 #include <cmath>
@@ -328,7 +329,9 @@ int main(int argc, char **argv) {
                 if (z_cam <= 0.0f) { ++n_gt_miss; continue; }
 
                 float dc[3];
-                if (nf_cam_unproject_c(&cam, (float)su + 0.5f, (float)sv + 0.5f, dc) != NF_OK)
+                nf_u8 conv_dc = 0;
+                if (nf_vcam_unproject(&cam, (float)su + 0.5f, (float)sv + 0.5f,
+                                      dc, nullptr, &conv_dc) != NF_OK || !conv_dc)
                     continue;
                 if (dc[2] <= 1e-6f) continue;
 
