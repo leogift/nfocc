@@ -17,10 +17,10 @@
 | σ 传播 | **已接线** | `nf_compute_spatial_uncertainty_cm` 2 处 |
 | σ 落库 | **已接线** | `nf_voxel_insert_with_sigma` 2 处 |
 | D2 双向一致性 | **函数在，主链无调用** | `nf_occlusion_weight` 0 处 |
-| D4 交叉验证 | **函数在，主链无调用** | `nf_voxel_verify_cross` 0 处 |
-| 双基线状态机 | **类在，主链无调用** | `nf_baseline_manager_*` 0 处 |
+| D4 交叉验证 | **已接线** | `insert_point` 封装内调用 `nf_voxel_verify_cross`，门限 `nf_verify_thresh_mm` 随距离自适应 |
+| 双基线状态机 | **已接线** | `pipeline.cpp` 中 `nf_baseline_manager_push/decide` 各 1 处，仅 cam0 推进 |
 
-所以真正待接入的是 **D2、D4、双基线**三项。
+所以真正待接入的只剩 **D2** 一项（D4 与双基线已于 2026-11-02 接入）。
 
 （2026-11-02 更新：D1 已补全。`nf_mask_build_vehicle` 用 5000×2000 矩形
 占位生成掩码，实车轮廓数据到位后替换多边形即可。实测覆盖 cam0 0.1%、

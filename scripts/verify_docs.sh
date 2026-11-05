@@ -43,13 +43,16 @@ done
 if [ -z "$ORPHAN" ]; then ok 索引完整 "无遗漏"; else bad 索引完整 "未登记:$ORPHAN"; fi
 
 echo "== [5] 文档声明已接入的符号，代码里真的在调用 =="
-# 这三项文档说"已接入"，就必须在 pipeline 里能找到
-for sym in nf_pt_in_foe nf_compute_spatial_uncertainty_cm; do
+# 文档说"已接入"的符号，就必须在 pipeline 里能找到调用点。
+# D4 与双基线 2026-11-02 已接入，从下面"未接入"组移到这一组。
+for sym in nf_pt_in_foe nf_compute_spatial_uncertainty_cm \
+           nf_voxel_verify_cross nf_verify_thresh_mm \
+           nf_baseline_manager_push nf_baseline_manager_decide; do
     N=$(grep -c "$sym" "$C/src/pipeline/pipeline.cpp" 2>/dev/null)
     [ "$N" -gt 0 ] && ok "$sym" "pipeline 调用 $N 处" || bad "$sym" "文档说已接入但 0 处"
 done
-# 这三项文档说"未接入"，就必须确实是 0
-for sym in nf_occlusion_weight nf_voxel_verify_cross nf_baseline_manager_decide; do
+# 文档说"未接入"的符号，必须确实是 0 处
+for sym in nf_occlusion_weight; do
     N=$(grep -c "$sym" "$C/src/pipeline/pipeline.cpp" 2>/dev/null)
     [ "$N" -eq 0 ] && ok "$sym" "确认未接入(0)" || bad "$sym" "文档说未接入但有 $N 处"
 done

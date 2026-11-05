@@ -42,7 +42,7 @@ option(NF_WITH_ORT       "启用 onnxruntime (模型引擎)"  ON)
 # vcam 后端：用 /Volumes/Workspace/virtualcamera/cpp 的相机模型做投影。
 # 默认 OFF —— 它是可选后端，开启后 nf_vcam_* 系列才有实现；
 # 关闭时桥接层编成返回 UNSUPPORTED 的桩，业务代码无需 #ifdef。
-option(NF_WITH_VCAM      "启用 vcam 相机模型后端"       OFF)
+option(NF_WITH_VCAM      "启用 vcam 相机模型后端"       ON)
 set(NF_VCAM_DIR "" CACHE PATH "virtualcamera/cpp 源码目录（NF_WITH_VCAM=ON 时必填）")
 option(NF_USE_OPENMP     "启用 OpenMP 并行"             ON)
 option(NF_USE_EIGEN      "启用 Eigen"                  ON)
@@ -105,13 +105,34 @@ target_link_libraries(nfocc_core PUBLIC Threads::Threads)
 # 返回 NF_VCAM_BACKEND_NONE，业务代码按返回值判断即可。
 set(NF_VCAM_FOUND OFF)
 if(NF_WITH_VCAM)
+  # NF_WITH_VCAM 默认 ON（vcam 是主路径），所以这里**不能 FATAL_ERROR**：
+  # 换台机器 / CI 上没有 vcam 时，构建必须能继续（回退到原生实现），
+  # 而不是直接失败。用户显式传了 NF_VCAM_DIR 却路径不对才报错。
   if(NOT NF_VCAM_DIR)
-    message(FATAL_ERROR "NF_WITH_VCAM=ON 但 NF_VCAM_DIR 为空。"
-                        "请传 -DNF_VCAM_DIR=/path/to/virtualcamera/cpp")
+    foreach(_vcam_hint
+            "${CMAKE_CURRENT_SOURCE_DIR}/../virtualcamera/cpp"
+            "/Volumes/Workspace/virtualcamera/cpp"
+            "/opt/virtualcamera/cpp")
+      if(EXISTS "${_vcam_hint}/CMakeLists.txt")
+        set(NF_VCAM_DIR "${_vcam_hint}" CACHE PATH
+            "virtualcamera/cpp 源码目录" FORCE)
+        break()
+      endif()
+    endforeach()
   endif()
-  if(NOT EXISTS "${NF_VCAM_DIR}/CMakeLists.txt")
+
+  if(NF_VCAM_DIR AND NOT EXISTS "${NF_VCAM_DIR}/CMakeLists.txt")
     message(FATAL_ERROR "NF_VCAM_DIR 下没有 CMakeLists.txt: ${NF_VCAM_DIR}")
   endif()
+  if(NOT NF_VCAM_DIR)
+    message(WARNING
+      "NFOCC: NF_WITH_VCAM=ON 但没找到 vcam 源码，回退到原生相机模型。"
+      "需要 vcam 时传 -DNF_VCAM_DIR=/path/to/virtualcamera/cpp")
+    set(NF_WITH_VCAM OFF)
+  endif()
+endif()
+
+if(NF_WITH_VCAM)
 
   # vcam 的核心库零三方依赖，这里关掉它的工具层，避免拉进 OpenCV
   set(VCAM_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
