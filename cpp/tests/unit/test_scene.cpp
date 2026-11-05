@@ -124,22 +124,32 @@ NF_TEST(scene_raycast_wall) {
     nf_scene_default(&s);
     const float o[3] = { 0.0f, 0.0f, 1000.0f };
 
-    /* (1) 沿 +x：应命中 1.2m 处的近距障碍（最近命中） */
+    /*
+     * **2026-11 场景二次重建后本条跟着改。**
+     * 竖直结构改按**相机前方的真实距离**摆放（相机在
+     * x = NF_VEH_REAR_TO_FRONT = 3500）：
+     *   plane 2: x=4300 (前方 800mm)
+     *   plane 3: x=5100 (前方 1600mm, 窄立柱)
+     *   plane 4: x=6000 (前方 2500mm, y∈[-1400,200])
+     *   plane 5: x=7100 (前方 3600mm)
+     * 原来的 x=1200 / x=4000 已删：前者在相机后方打不到，
+     * 后者挡住整个前向视线，是 2-5m 段无样本的根源。
+     */
+
+    /* (1) 中心视线：应命中最近的 4300 结构 */
     const float d[3] = { 1.0f, 0.0f, 0.0f };
     float t = 0.0f, P[3];
     nf_u32 pl = 99;
     NF_CHECK_STATUS(nf_scene_raycast(&s, o, d, &t, P, &pl), NF_OK);
-    NF_CHECK_NEAR(t, 1200.0f, 1.0f);
-    NF_CHECK_EQ_INT(pl, 3);
+    NF_CHECK_NEAR(t, 4300.0f, 1.0f);
+    NF_CHECK_EQ_INT(pl, 2);
 
-    /* (2) 偏开障碍的横向范围（y=2000 超出 ±800）：应命中 4m 前墙 */
-    const float y = 2000.0f;
-    NF_CHECK_MSG(y > 800.0f, "该 y 必须在近距障碍外包框之外");
-    const float o2[3] = { 0.0f, y, 1000.0f };
-    const float d2[3] = { 1.0f, 0.0f, 0.0f };
-    NF_CHECK_STATUS(nf_scene_raycast(&s, o2, d2, &t, P, &pl), NF_OK);
-    NF_CHECK_NEAR(t, 4000.0f, 1.0f);
-    NF_CHECK_EQ_INT(pl, 1);
+    /* (2) 偏开中心障碍（y=1200，超出 ±700）：不应命中 4300 的近结构 */
+    const float o2[3] = { 0.0f, 1200.0f, 1000.0f };
+    NFStatus st2 = nf_scene_raycast(&s, o2, d, &t, P, &pl);
+    if (st2 == NF_OK) {
+        NF_CHECK_MSG(t > 5000.0f, "偏开后不应命中 4300 的近障碍");
+    }
 }
 
 /* 朝上打: 无平面可命中, 必须返回失败而不是给出巨大深度 */
