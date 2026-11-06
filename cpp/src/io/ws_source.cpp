@@ -88,18 +88,30 @@ public:
         for (int c = 0; c < 4; ++c) {
             in->img[c]     = cur_[c].data.data();
             in->img_ref[c] = ref_[c].data.data();
-            /* **t_cam 用视口系（SPEC-CONVENTION §2）**。
-             * 行驶方向是车体 +X，转到该路虚拟视口系 = 绕 Z 轴反向转 yaw:
-             *   t_S[0] =  d·cos(yaw)
-             *   t_S[1] = -d·sin(yaw)
-             *   t_S[2] =  0
-             * 早期这里用真实外参 Rᵀ 转到**相机系**，与射线所在基不一致，
-             * 导致门控与深度全错。 */
+            /*
+             * **t_cam 用视口系（SPEC-CONVENTION §2）**。
+             *
+             * 行驶方向是车体 +X。视口基向量（SPEC-CONVENTION §2）：
+             *   forward = (cos yaw, sin yaw, 0)   <- 视口 z 轴
+             *   right   = (sin yaw,-cos yaw, 0)   <- 视口 x 轴
+             * 车体位移 d·(1,0,0) 投影到视口系：
+             *   沿视口 z = d·cos(yaw)
+             *   沿视口 x = d·sin(yaw)
+             *
+             * 历史 bug：原来写成 `t_S[0] = d·cos(yaw)`、`t_S[2] = 0`，
+             * 把**前进位移放到了视口横向**。直行时正确值应是
+             * t_S[2] = d（yaw=0），原式给 0 —— 基线为零，视差恒 0；
+             * 而 t_S[0] 却拿到 d，门控按"横向位移"判成侧行。
+             *
+             * 实测症状（真实 hanqtech 数据）：三角化出**负深度**
+             * （z 最小 -497mm）、点云水平距 3.7-8.9m 全在车外、
+             * 16k 插入点最后只剩 55 个。
+             */
             const float yaw_c = yaw_[c] * (float)(3.14159265358979323846 / 180.0);
             const float cy = std::cos(yaw_c), sy = std::sin(yaw_c);
-            in->t_cam[c][0] =  move * cy;
-            in->t_cam[c][1] = -move * sy;
-            in->t_cam[c][2] =  0.0f;
+            in->t_cam[c][0] = move * sy;    /* 视口 x = right 分量 */
+            in->t_cam[c][1] = 0.0f;
+            in->t_cam[c][2] = move * cy;    /* 视口 z = forward 分量 */
         }
         in->width  = (nf_u32)cur_[0].w;
         in->height = (nf_u32)cur_[0].h;
