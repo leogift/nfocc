@@ -18,17 +18,17 @@
 <text x="36.0" y="123.0" font-size="12.5" fill="#1b2b3a" text-anchor="start" font-weight="600">精度未证实</text>
 <text x="202.0" y="123.0" font-size="12.5" fill="#c0392b" text-anchor="start" font-weight="600">高</text>
 <text x="258.0" y="123.0" font-size="10.9" fill="#33475b" text-anchor="start">侧行 291/256/433/896 mm</text>
-<text x="258.0" y="140.0" font-size="10.9" fill="#33475b" text-anchor="start">目标 150/200/320/320 mm</text>
-<text x="668.0" y="123.0" font-size="10.9" fill="#33475b" text-anchor="start">重建随机相位场景（P0）</text>
-<text x="668.0" y="140.0" font-size="10.9" fill="#33475b" text-anchor="start">当前纹理让 SGBM 锁错周期</text>
+<text x="258.0" y="140.0" font-size="10.9" fill="#33475b" text-anchor="start">前视 90° 223/222/367/408 mm</text>
+<text x="668.0" y="123.0" font-size="10.9" fill="#33475b" text-anchor="start">目标 150/200/320/320 mm</text>
+<text x="668.0" y="140.0" font-size="10.9" fill="#33475b" text-anchor="start">1–2 m 仍 223 mm</text>
 <rect x="24.0" y="158.0" width="1032.0" height="50.0" rx="5" fill="#ffffff" stroke="#e2e8ee" stroke-width="1"/>
-<rect x="24.0" y="158.0" width="5.0" height="50.0" rx="2" fill="#c0392b"/>
-<text x="36.0" y="179.0" font-size="12.5" fill="#1b2b3a" text-anchor="start" font-weight="600">FORWARD 性能</text>
-<text x="202.0" y="179.0" font-size="12.5" fill="#c0392b" text-anchor="start" font-weight="600">高</text>
-<text x="258.0" y="179.0" font-size="10.9" fill="#33475b" text-anchor="start">有效帧 11.2 s</text>
-<text x="258.0" y="196.0" font-size="10.9" fill="#33475b" text-anchor="start">5 Hz 预算 200 ms</text>
-<text x="668.0" y="179.0" font-size="10.9" fill="#33475b" text-anchor="start">降采样 / 金字塔 / 并行化</text>
-<text x="668.0" y="196.0" font-size="10.9" fill="#33475b" text-anchor="start">径向搜索（P1）</text>
+<rect x="24.0" y="158.0" width="5.0" height="50.0" rx="2" fill="#b26a00"/>
+<text x="36.0" y="179.0" font-size="12.5" fill="#1b2b3a" text-anchor="start" font-weight="600">快速路径余量薄</text>
+<text x="202.0" y="179.0" font-size="12.5" fill="#b26a00" text-anchor="start" font-weight="600">中</text>
+<text x="258.0" y="179.0" font-size="10.9" fill="#33475b" text-anchor="start">191.8 ms / 200 ms（4%）</text>
+<text x="258.0" y="196.0" font-size="10.9" fill="#33475b" text-anchor="start">全质量 11.6 s</text>
+<text x="668.0" y="179.0" font-size="10.9" fill="#33475b" text-anchor="start">负载/换机重测余量</text>
+<text x="668.0" y="196.0" font-size="10.9" fill="#33475b" text-anchor="start">点数 1,088 vs 2,077</text>
 <rect x="24.0" y="214.0" width="1032.0" height="50.0" rx="5" fill="#ffffff" stroke="#e2e8ee" stroke-width="1"/>
 <rect x="24.0" y="214.0" width="5.0" height="50.0" rx="2" fill="#c0392b"/>
 <text x="36.0" y="235.0" font-size="12.5" fill="#1b2b3a" text-anchor="start" font-weight="600">地面以下点 -498 mm</text>
@@ -39,12 +39,12 @@
 <text x="668.0" y="252.0" font-size="10.9" fill="#33475b" text-anchor="start">网格外点单独计数</text>
 <rect x="24.0" y="270.0" width="1032.0" height="50.0" rx="5" fill="#ffffff" stroke="#e2e8ee" stroke-width="1"/>
 <rect x="24.0" y="270.0" width="5.0" height="50.0" rx="2" fill="#b26a00"/>
-<text x="36.0" y="291.0" font-size="12.5" fill="#1b2b3a" text-anchor="start" font-weight="600">双基线不判方向</text>
+<text x="36.0" y="291.0" font-size="12.5" fill="#1b2b3a" text-anchor="start" font-weight="600">快速路径点数减半</text>
 <text x="202.0" y="291.0" font-size="12.5" fill="#b26a00" text-anchor="start" font-weight="600">中</text>
-<text x="258.0" y="291.0" font-size="10.9" fill="#33475b" text-anchor="start">直行强制 STEREO</text>
-<text x="258.0" y="308.0" font-size="10.9" fill="#33475b" text-anchor="start">46,821 次插入 / 0 点</text>
-<text x="668.0" y="291.0" font-size="10.9" fill="#33475b" text-anchor="start">加 σ/FoE 方向判据</text>
-<text x="668.0" y="308.0" font-size="10.9" fill="#33475b" text-anchor="start">或仅对侧向相机启用</text>
+<text x="258.0" y="291.0" font-size="10.9" fill="#33475b" text-anchor="start">1,088 vs 2,077 点</text>
+<text x="258.0" y="308.0" font-size="10.9" fill="#33475b" text-anchor="start">近场密度下降</text>
+<text x="668.0" y="291.0" font-size="10.9" fill="#33475b" text-anchor="start">按场景切换快速/全质量</text>
+<text x="668.0" y="308.0" font-size="10.9" fill="#33475b" text-anchor="start">或补全分辨率细化</text>
 <rect x="24.0" y="326.0" width="1032.0" height="50.0" rx="5" fill="#ffffff" stroke="#e2e8ee" stroke-width="1"/>
 <rect x="24.0" y="326.0" width="5.0" height="50.0" rx="2" fill="#b26a00"/>
 <text x="36.0" y="347.0" font-size="12.5" fill="#1b2b3a" text-anchor="start" font-weight="600">车身掩码粗糙</text>

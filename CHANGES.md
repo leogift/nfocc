@@ -1,5 +1,26 @@
 # CHANGES
 
+## 2026-11-09 — P0 可测性/正确性 + P1 FORWARD 加速
+
+### P0
+
+- `NFPipelineConfig::cam_enable_mask`：一个 pipeline 只跑指定相机，前视 90°/侧视 150° 可分开验证。
+- `test_depth_accuracy`：新增 `depth_accuracy_front90_5kmh`（590×1024/90°，只 FV）与 `depth_accuracy_front90_fast`；前视表面中位 **223/222/367/408 mm**，侧视 291/256/433/896。
+- `NF_DUMP_TRUTH=<csv>`：逐点导出 P / 真值点 / e_surf / e_rad / rng，前视 1,682 行。
+- `nfocc_run --body-mask-dir DIR`：读每路 `<FV|RV|MVL|MVR>.png`；空掩码 2,089 点、全掩码时对应视口禁用。
+- `nfocc_run` 增加 `BELOW_GROUND`：全质量 236/2,077、快速 135/1,186，均 11.4%，cam0 为主。
+- `nf_test.h` 支持 `NF_TEST_FILTER`，单跑长用例。
+
+### P1
+
+- `nf_match_radial_fast`：2× 采样 + 1.0 px 粗搜 + 0.5 px 细化 + 径向位移双线性插值 + OpenMP。
+- `nfocc_run` 默认快速路径 **191.8 ms / 1,088 点**；`--forward-full` 保留 11.6 s / 2,077 点。
+- 前视快速 206/231/347/385 mm vs 全质量 223/222/367/408：2–3 m +4.1%，其余更好；点数约减半。
+- `--bench` 输出有效帧 p50/p95 与摊薄；`--forward-coarse`/`--forward-ncc` 可调。
+- 测试总数 179 用例 / 2,347 断言；`depth_accuracy` 6 个用例中 4 个失败（原四个验收用例）。
+
+---
+
 ## v0.4.0 — 并发基础、依赖治理、参数定案
 
 ### 用户定案的新参数（已落到 `nfocc_default.h`，每项都带反推依据）

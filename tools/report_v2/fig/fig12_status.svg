@@ -72,9 +72,9 @@
 <rect x="549.0" y="412.0" width="505.0" height="48.0" rx="5" fill="#fbeceb" stroke="#c0392b" stroke-width="1.2"/>
 <text x="561.0" y="432.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">精度验收</text>
 <text x="561.0" y="450.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">4/4 段未达，唯一失败测试</text>
-<rect x="549.0" y="468.0" width="505.0" height="48.0" rx="5" fill="#fbeceb" stroke="#c0392b" stroke-width="1.2"/>
+<rect x="549.0" y="468.0" width="505.0" height="48.0" rx="5" fill="#fdf4e5" stroke="#b26a00" stroke-width="1.2"/>
 <text x="561.0" y="488.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">FORWARD 性能</text>
-<text x="561.0" y="506.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">有效帧 11.2 s，超预算 56×</text>
+<text x="561.0" y="506.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">快速 191.8 ms；全质量 11.6 s</text>
 <rect x="549.0" y="524.0" width="505.0" height="48.0" rx="5" fill="#fbeceb" stroke="#c0392b" stroke-width="1.2"/>
 <text x="561.0" y="544.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">地面以下点 -498 mm</text>
 <text x="561.0" y="562.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">真实数据可复现，未查明</text>
@@ -87,5 +87,5 @@
 <rect x="549.0" y="692.0" width="505.0" height="48.0" rx="5" fill="#fbeceb" stroke="#c0392b" stroke-width="1.2"/>
 <text x="561.0" y="712.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">深度真值</text>
 <text x="561.0" y="730.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">数据集只有 ego 与图像</text>
-<text x="24.0" y="776.0" font-size="12.5" fill="#8794a3" text-anchor="start">统计口径：24 项中 14 项完成、4 项部分、6 项未做。「部分」最容易被误报为完成 —— 函数在、测试绿、系统不调用。</text>
+<text x="24.0" y="776.0" font-size="12.5" fill="#8794a3" text-anchor="start">统计口径：24 项中 14 项完成、5 项部分、5 项未做。「部分」最容易被误报为完成 —— 函数在、测试绿、系统不调用。</text>
 </svg>

@@ -36,7 +36,7 @@ FIGS = {
     "FIG_DEFENSE": ("fig08_defense.svg", "图 11  防御体系的接入状态与拦截对象"),
     "FIG_DVF": ("fig09_dvf.svg", "图 12  五阶段体素精简的逐级点数（实测单帧）"),
     "FIG_PERF": ("fig10_perf.svg", "图 14  实测延时：有效帧 vs 摊薄（对数轴）"),
-    "FIG_TEST": ("fig11_test.svg", "图 18  测试现状：21 个目标、177 个用例、2,343 次断言"),
+    "FIG_TEST": ("fig11_test.svg", "图 18  测试现状：21 个目标、179 个用例、2,347 次断言"),
     "FIG_STATUS": ("fig12_status.svg", "图 19  开发进展看板（三色：完成 / 部分 / 未做）"),
     "FIG_COMPLETE": ("fig13_complete.svg", "图 20  功能完成度自评（口径见图内）"),
     "FIG_LIMITS": ("fig14_limits.svg", "图 15  已知局限：影响 × 证据 × 对策"),
@@ -260,7 +260,7 @@ def cover_html() -> str:
         ("11,004", "行核心代码（src + include）"),
         ("4 × 1280×966", "鱼眼输入，单 Y 通道"),
         ("0.5–5 m", "近场覆盖，输出点云 + zMap"),
-        ("20 / 21", "ctest 通过；177 用例 / 2,343 断言"),
+        ("20 / 21", "ctest 通过；179 用例 / 2,347 断言"),
     ]
     cards = "".join(
         f'<div class="stat"><b>{v}</b><span>{k}</span></div>' for v, k in stats)

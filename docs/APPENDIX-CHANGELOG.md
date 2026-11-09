@@ -264,7 +264,7 @@ python3 tools/calib_gen.py --inject-fault max_theta   # 负对照 EXIT=1
 ### 新增
 
 - `IMPROVEMENT-PLAN.md`：P0（可测性/正确性）、P1（FORWARD 性能）、P2（0_SKILL M4/M5/M6）、P3（M1/M2/M3）、P4（真机）分阶段方案，含验收命令与"已排除假设"清单。
-- `report/NFOCC-项目报告-2026-11.pdf`：31 页项目报告（15 张矢量图 + 5 张实测图）。
+- `report/NFOCC-项目报告-2026-11.pdf`：32 页项目报告（15 张矢量图 + 5 张实测图）。
 
 ### 代码
 

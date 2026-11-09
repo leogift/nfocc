@@ -50,7 +50,7 @@
 |---|---|
 | `report/NFOCC-项目总览.pdf` | 9 页：项目定位 / 业务逻辑 / 架构 / 数据流 / 算法 / 亮点 / 局限 / 进展 / 待办 / 选型权衡 |
 | `report/REPORT-FULL.md` | 上者正文源 |
-| `report/NFOCC-项目报告-2026-11.pdf` | 31 页：业务/架构/数据流/算法/性能/局限/进展，含 15 张矢量图 + 5 张实测图 |
+| `report/NFOCC-项目报告-2026-11.pdf` | 32 页：业务/架构/数据流/算法/性能/局限/进展，含 15 张矢量图 + 5 张实测图 |
 
 生成流程：改 `report/REPORT-FULL.md` → 重跑 `tools/build_report_full.py`（程序化 SVG + pandoc + Chromium 打印）。
 新报告：`docs/report/v2/report.md` + `tools/report_v2/build_report.py`（同上，另含 PyMuPDF 页脚/页码）。
