@@ -24,6 +24,7 @@
 #endif
 
 #include <memory>
+#include <algorithm>
 #include <vector>
 
 #include <cstdio>
@@ -143,6 +144,11 @@ int main(int argc, char **argv) {
     bool viewplan = false;
     float hfov_deg = NF_V_VIEW_HFOV_DEG;
     bool no_body_mask = false;       /* --no-body-mask: 关闭 D1 */
+    bool forward_full = false;       /* --forward-full: 关闭 P1 加速 */
+    bool bench = false;              /* --bench: 有效帧/摊薄口径 */
+    float forward_coarse = 1.0f;     /* --forward-coarse: 粗搜步长 */
+    float forward_ncc = 0.7f;        /* --forward-ncc: 快速路径 NCC 下限 */
+    const char *body_mask_dir = nullptr; /* --body-mask-dir: 每路 PNG 掩码 */
     float sigma_max_cm = 0.0f;       /* --sigma-max: σ 截断门限(cm)，负=关闭 */
     bool  filter_on = false;         /* --filter: 启用 REV-003 五阶段精简 */
     nf_u32 filter_cap = 0;           /* --filter-cap: 覆盖配额(默认 15000) */
@@ -167,6 +173,14 @@ int main(int argc, char **argv) {
         else if (!std::strcmp(argv[i], "--forward")) forward = true;
         else if (!std::strcmp(argv[i], "--viewplan")) viewplan = true;
         else if (!std::strcmp(argv[i], "--no-body-mask")) no_body_mask = true;
+        else if (!std::strcmp(argv[i], "--forward-full")) forward_full = true;
+        else if (!std::strcmp(argv[i], "--bench")) bench = true;
+        else if (!std::strcmp(argv[i], "--forward-coarse") && i + 1 < argc)
+            forward_coarse = (float)atof(argv[++i]);
+        else if (!std::strcmp(argv[i], "--forward-ncc") && i + 1 < argc)
+            forward_ncc = (float)atof(argv[++i]);
+        else if (!std::strcmp(argv[i], "--body-mask-dir") && i + 1 < argc)
+            body_mask_dir = argv[++i];
         else if (!std::strcmp(argv[i], "--sigma-max") && i + 1 < argc)
             sigma_max_cm = (float)atof(argv[++i]);
         else if (!std::strcmp(argv[i], "--filter")) filter_on = true;
@@ -233,6 +247,9 @@ int main(int argc, char **argv) {
 
     cfg.b_min_mm = NF_B_MIN;
     if (cfg.b_max_mm <= 0.0f) cfg.b_max_mm = NF_B_MAX;
+    cfg.forward_sample_step = forward_full ? 0u : 2u;
+    cfg.forward_coarse_step = forward_full ? 0.0f : forward_coarse;
+    cfg.forward_ncc_min = forward_full ? 0.6f : forward_ncc;
     cfg.sigma_d_px = NF_T_SIGMA_D;
     cfg.sigma_b_ratio = NF_T_SIGMA_B_RATIO;
     cfg.gap_max_frames = NF_GAP_MAX_FRAMES;
@@ -344,36 +361,71 @@ int main(int argc, char **argv) {
          * 换成真实多边形后消失。
          */
         if (!no_body_mask) {
-            const float half_l = NF_VEH_LEN * 0.5f;
-            const float front  = NF_VEH_REAR_TO_FRONT;
-            const float rear   = front - NF_VEH_LEN;
-            const float half_w = NF_VEH_WID * 0.5f;
-            /* 车体系俯视矩形，顺时针 */
-            const nf_f32 poly[8] = {
-                front,  -half_w,   /* 右前 */
-                front,   half_w,   /* 左前 */
-                rear,    half_w,   /* 左后 */
-                rear,   -half_w,   /* 右后 */
-            };
             const size_t msz = (size_t)wscal.image_w * wscal.image_h;
             mask_buf.assign(msz * 4u, 0);
             nf_u32 tot_cov = 0;
-            for (int c = 0; c < 4; ++c) {
-                nf_u32 cov = 0;
-                nf_mask_build_vehicle(&cams[c], &poses[c],
-                                      wscal.image_w, wscal.image_h,
-                                      poly, 4u, mask_buf.data() + (size_t)c * msz,
-                                      &cov);
-                tot_cov += cov;
-                std::printf("  D1 cam%d 车身掩码覆盖 %u 像素 (%.1f%%)\n",
-                            c, cov, 100.0 * (double)cov / (double)msz);
+
+            if (body_mask_dir) {
+                /*
+                 * 真实掩码：每路一张与原图同尺寸的 PNG，非零=车身。
+                 * 这是 TODO-1 的落地方式 —— 矩形投影在侧视会误挖 77%，
+                 * 真实掩码应由标定/分割给出，程序只负责加载，不再猜。
+                 */
+                for (int c = 0; c < 4; ++c) {
+                    char path[640];
+                    std::snprintf(path, sizeof(path), "%s/%s.png",
+                                  body_mask_dir, wscal.name[c]);
+                    nf::Png m;
+                    if (!nf::png_read_gray(path, &m)) {
+                        std::printf("D1 掩码读取失败: %s\n", path);
+                        return 1;
+                    }
+                    if ((nf_u32)m.w != wscal.image_w ||
+                        (nf_u32)m.h != wscal.image_h) {
+                        std::printf("D1 掩码尺寸不符: %s (%dx%d, 期望 %ux%u)\n",
+                                    path, m.w, m.h, wscal.image_w, wscal.image_h);
+                        return 1;
+                    }
+                    nf_u8 *dst = mask_buf.data() + (size_t)c * msz;
+                    nf_u32 cov = 0;
+                    for (size_t k = 0; k < msz; ++k) {
+                        dst[k] = (m.data[k] > 127) ? 1u : 0u;
+                        cov += dst[k];
+                    }
+                    tot_cov += cov;
+                    std::printf("  D1 cam%d 真实掩码覆盖 %u 像素 (%.1f%%)\n",
+                                c, cov, 100.0 * (double)cov / (double)msz);
+                }
+                std::printf("D1 车身掩码来自 %s (合计 %u 像素)\n",
+                            body_mask_dir, tot_cov);
+            } else {
+                const float front  = NF_VEH_REAR_TO_FRONT;
+                const float rear   = front - NF_VEH_LEN;
+                const float half_w = NF_VEH_WID * 0.5f;
+                /* 车体系俯视矩形，顺时针 */
+                const nf_f32 poly[8] = {
+                    front,  -half_w,   /* 右前 */
+                    front,   half_w,   /* 左前 */
+                    rear,    half_w,   /* 左后 */
+                    rear,   -half_w,   /* 右后 */
+                };
+                for (int c = 0; c < 4; ++c) {
+                    nf_u32 cov = 0;
+                    nf_mask_build_vehicle(&cams[c], &poses[c],
+                                          wscal.image_w, wscal.image_h,
+                                          poly, 4u, mask_buf.data() + (size_t)c * msz,
+                                          &cov);
+                    tot_cov += cov;
+                    std::printf("  D1 cam%d 车身掩码覆盖 %u 像素 (%.1f%%)\n",
+                                c, cov, 100.0 * (double)cov / (double)msz);
+                }
+                std::printf("D1 车身掩码已生成 (矩形 %.0fx%.0f mm, 合计 %u 像素)\n",
+                            (double)NF_VEH_LEN, (double)NF_VEH_WID, tot_cov);
             }
-            (void)half_l;
+
             for (int c = 0; c < 4; ++c)
                 cfg.body_mask[c] = tot_cov
                     ? mask_buf.data() + (size_t)c * msz : nullptr;
-            std::printf("D1 车身掩码已生成 (矩形 %.0fx%.0f mm, 合计 %u 像素)\n",
-                        (double)NF_VEH_LEN, (double)NF_VEH_WID, tot_cov);
         } else {
             std::printf("D1 车身掩码已关闭 (--no-body-mask)\n");
         }
@@ -454,6 +506,7 @@ int main(int argc, char **argv) {
     }
 
     double t_total = 0.0;
+    std::vector<double> bench_all, bench_eff;
     nf_u32 total_points = 0;
     nf_u8  last_filter_enabled = 0u;
     NFVoxelFilterStats last_filter_stats;
@@ -480,6 +533,8 @@ int main(int argc, char **argv) {
         st = nf_pipeline_process(pipe, &in, &out);
         const double dt = now_ms() - t0;
         t_total += dt;
+        bench_all.push_back(dt);
+        if (out.cloud.num_points > 0 && !out.is_frozen) bench_eff.push_back(dt);
 
         if (do_stats || f == 0) {
             std::printf("帧 %3d: %s  主导模式=%-8s  点=%6u  %.1f ms%s\n",
@@ -527,6 +582,30 @@ int main(int argc, char **argv) {
                         f, out.cloud.num_points, zmin, zmax,
                         (double)zsum / out.cloud.num_points,
                         dmin, dmax, dsum / out.cloud.num_points);
+
+            /*
+             * 地面以下点诊断（P0.3）。
+             *
+             * z 是 ISO 8855 的车体高度，地面 = 0。z < -100 mm 不是
+             * "负深度"（负深度是沿射线的 s<=0，三角化已经拒绝），而是
+             * 错误视差/射线组合解出的地下点。先按来源相机拆开，判断是
+             * 某一路的视口/外差问题还是全局问题；不要直接硬过滤 ——
+             * 真实坡道也会产生 z<0。
+             */
+            nf_u32 n_below = 0, below_cam[NF_NUM_CAMERAS] = {0, 0, 0, 0};
+            for (nf_u32 q = 0; q < out.cloud.num_points; ++q) {
+                if (out.cloud.points[q].z_mm >= -100) continue;
+                ++n_below;
+                for (nf_u32 c = 0; c < NF_NUM_CAMERAS; ++c)
+                    if (out.cloud.points[q].source_camera & (1u << c))
+                        ++below_cam[c];
+            }
+            if (n_below) {
+                std::printf("BELOW_GROUND f=%d: n=%u (%.1f%%) | cam0=%u cam1=%u cam2=%u cam3=%u\n",
+                            f, n_below,
+                            100.0 * n_below / out.cloud.num_points,
+                            below_cam[0], below_cam[1], below_cam[2], below_cam[3]);
+            }
         }
 
         /* ---- 下游发布: 冻结也照常发（SPEC-DOWNSTREAM §1） ---- */
@@ -587,6 +666,20 @@ int main(int argc, char **argv) {
     std::printf("\n--- 统计 ---\n");
     std::printf("帧数 %d, 平均耗时 %.1f ms/帧\n", n_frames,
                 n_frames ? t_total / n_frames : 0.0);
+    if (bench && !bench_all.empty()) {
+        std::sort(bench_all.begin(), bench_all.end());
+        std::sort(bench_eff.begin(), bench_eff.end());
+        auto pct = [](const std::vector<double> &v, double p) {
+            if (v.empty()) return -1.0;
+            size_t k = (size_t)(p * (double)(v.size() - 1) + 0.5);
+            return v[k];
+        };
+        std::printf("BENCH: frames=%zu effective=%zu | eff p50=%.1f p95=%.1f ms | "
+                    "amortized=%.1f ms\n",
+                    bench_all.size(), bench_eff.size(),
+                    pct(bench_eff, 0.50), pct(bench_eff, 0.95),
+                    t_total / (double)bench_all.size());
+    }
         if (last_filter_enabled) {
             std::printf("REV-003 精简: %u 点 -> 输出 %u 点, 占用柱体 %u%s\n",
                         last_filter_stats.n_input, last_filter_stats.n_output,

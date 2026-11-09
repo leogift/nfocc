@@ -115,6 +115,18 @@ NF_TEST(ws_ego_loads) {
     NF_CHECK_MSG(std::strcmp(e.gear, "D") == 0, "档位应为 D");
 }
 
+/* 坐标约定回归：hanqtech 标定里 MVL 在 +Y、MVR 在 −Y。
+ * 这是"ego Y 向左"的独立证据，不依赖合成夹具。 */
+NF_TEST(ws_ego_y_axis_left) {
+    if (!dir_exists(kCalibDir)) { std::printf("      SKIP: 数据集不存在\n"); return; }
+    NFWSCalib c;
+    if (nf_ws_load_frame(kCalibDir, 164, &c) != NF_OK) { NF_CHECK(false); return; }
+    std::printf("      MVL y=%.1f mm, MVR y=%.1f mm\n",
+                (double)c.pose[2].t[1], (double)c.pose[3].t[1]);
+    NF_CHECK_MSG(c.pose[2].t[1] > 500.0f, "MVL 在 +Y（ISO 8855 Y 向左）");
+    NF_CHECK_MSG(c.pose[3].t[1] < -500.0f, "MVR 在 −Y（Y 向右会翻面）");
+}
+
 NF_TEST(ws_project_into_image) {
     if (!dir_exists(kCalibDir)) { std::printf("      SKIP\n"); return; }
     NFWSCalib c;

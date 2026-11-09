@@ -61,6 +61,26 @@ NFStatus nf_match_radial(const nf_u8 *cur, const nf_u8 *ref,
                          nf_f32 *out_cur, nf_f32 *out_conf, nf_u8 *out_valid);
 
 /**
+ * 快速版径向匹配（P1）。与 nf_match_radial 结果语义相同，但：
+ *   - 每 sample_step 行/列采样一次，结果复制到 sample_step×sample_step 块；
+ *   - 先以 coarse_step 粗搜，再在主峰 ±2·coarse_step 内以 0.5 px 细化；
+ *   - 单遍统计（主峰/次峰/均值/方差在同一循环内），不再扫两遍；
+ *   - 有 OpenMP 时按行并行（每行写自己的像素，无共享写）。
+ *
+ * 用于前向路径的实时化。sample_step=1、coarse_step=0.5 时退化回
+ * 全质量搜索（但仍是单遍统计）。精度用 test_depth_accuracy 的前视用例
+ * 与全质量路径对比，不靠"看起来一样"。
+ */
+NFStatus nf_match_radial_fast(const nf_u8 *cur, const nf_u8 *ref,
+                              const nf_u8 *valid_cur,
+                              nf_u32 w, nf_u32 h, NFFoe foe,
+                              nf_f32 r_min, nf_f32 r_max,
+                              nf_u32 patch, nf_f32 ncc_min,
+                              nf_u32 sample_step, nf_f32 coarse_step,
+                              nf_f32 *out_cur, nf_f32 *out_conf,
+                              nf_u8 *out_valid);
+
+/**
  * 由匹配结果算深度：沿 FoE 射线做一维膨胀求解。
  *
  * 对每个有效点：径向半径 ρ0 = |p − a|，ρ1 = |q − a|，

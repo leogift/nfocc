@@ -16,13 +16,14 @@
 
 namespace {
 
-void fill_input(NFFrameInput *in, const std::vector<std::vector<nf_u8>> *img,
-                nf_f32 tz, nf_u32 frame_id) {
+void fill_input_xyz(NFFrameInput *in,
+                    const std::vector<std::vector<nf_u8>> *img,
+                    nf_f32 tx, nf_f32 tz, nf_u32 frame_id) {
     std::memset(in, 0, sizeof(*in));
     for (int c = 0; c < 4; ++c) {
         in->img[c] = (*img)[c].data();
         in->img_ref[c] = (*img)[c].data();
-        in->t_cam[c][0] = 0.0f;
+        in->t_cam[c][0] = tx;
         in->t_cam[c][1] = 0.0f;
         in->t_cam[c][2] = tz;
     }
@@ -31,6 +32,11 @@ void fill_input(NFFrameInput *in, const std::vector<std::vector<nf_u8>> *img,
     in->stride = NF_IMG_W;
     in->frame_id = frame_id;
     in->frame_gap = 1;
+}
+
+void fill_input(NFFrameInput *in, const std::vector<std::vector<nf_u8>> *img,
+                nf_f32 tz, nf_u32 frame_id) {
+    fill_input_xyz(in, img, 0.0f, tz, frame_id);
 }
 
 std::vector<std::vector<nf_u8>> make_images() {
@@ -75,7 +81,7 @@ void make_rig(NFCameraModel cams[4], NFPose poses[4]) {
         poses[c].cam_id = (nf_u8)c;
         for (int col = 0; col < 3; ++col)
             for (int row = 0; row < 3; ++row)
-                poses[c].R[col * 3 + row] = axis[c][col][row];
+                poses[c].R[row * 3 + col] = axis[c][col][row];
         poses[c].t[0] = pos[c][0];
         poses[c].t[1] = pos[c][1];
         poses[c].t[2] = pos[c][2];
@@ -122,15 +128,46 @@ NF_TEST(pipe_baseline_manager_integrated) {
     std::vector<std::vector<nf_u8>> img = make_images();
     NFFrameInput in;
     NFFrameOutput out;
-    int n_stereo = 0;
+    int n_stereo = 0, n_forward = 0;
     for (nf_u32 f = 0; f < 5; ++f) {
         fill_input(&in, &img, 278.0f * (nf_f32)f, f);
         std::memset(&out, 0, sizeof(out));
         if (nf_pipeline_process(p, &in, &out) != NF_OK) continue;
         if (out.dominant_mode == NF_MODE_STEREO) ++n_stereo;
+        if (out.dominant_mode == NF_MODE_FORWARD) ++n_forward;
     }
-    std::printf("      5 帧中 %d 帧产出 STEREO\n", n_stereo);
-    NF_CHECK_MSG(n_stereo > 0, "累积到位后应有 STEREO 产出");
+    std::printf("      5 帧中 STEREO=%d FORWARD=%d\n", n_stereo, n_forward);
+    NF_CHECK_MSG(n_forward > 0,
+                 "纯前向平移在状态机路径下应判 FORWARD（方向兜底）");
+    NF_CHECK_MSG(n_stereo == 0,
+                 "纯前向平移不应被判成 STEREO（SGBM 结构性失效）");
+    nf_pipeline_destroy(p);
+}
+
+/** 方向兜底的负对照：纯侧向平移仍应由状态机判 STEREO */
+NF_TEST(pipe_baseline_manager_lateral_stays_stereo) {
+    NFPipelineConfig cfg;
+    base_config(&cfg);
+    cfg.b_target_mm = 500.0f;
+    cfg.enable_baseline_mgr = 1u;
+
+    NFPipeline *p = nullptr;
+    NFCameraModel cams[4]; NFPose poses[4];
+    make_rig(cams, poses);
+    NF_CHECK_STATUS(nf_pipeline_create(&p, &cfg, cams, poses), NF_OK);
+
+    std::vector<std::vector<nf_u8>> img = make_images();
+    NFFrameInput in;
+    NFFrameOutput out;
+    int n_stereo = 0;
+    for (nf_u32 f = 0; f < 5; ++f) {
+        fill_input_xyz(&in, &img, 278.0f * (nf_f32)f, 0.0f, f);
+        std::memset(&out, 0, sizeof(out));
+        if (nf_pipeline_process(p, &in, &out) != NF_OK) continue;
+        if (out.dominant_mode == NF_MODE_STEREO) ++n_stereo;
+    }
+    std::printf("      侧向 5 帧中 STEREO=%d\n", n_stereo);
+    NF_CHECK_MSG(n_stereo > 0, "侧向平移应保持 STEREO（方向兜底不能误伤）");
     nf_pipeline_destroy(p);
 }
 

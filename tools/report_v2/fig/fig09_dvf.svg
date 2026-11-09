@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 430" width="1080" height="430">
+<rect width="1080" height="430" fill="#ffffff"/>
+<style>text{font-family:"PingFang SC","Hiragino Sans GB","Heiti SC",sans-serif;}.mono{font-family:"SF Mono","Menlo",monospace;}</style>
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#456"/></marker>
+<marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1e5a96"/></marker>
+<marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2e7d32"/></marker>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#c0392b"/></marker>
+</defs>
+<text x="30.0" y="34.0" font-size="25" fill="#1b2b3a" text-anchor="start" font-weight="600">五阶段稠密体素精简：2,077 → 1,352 点</text>
+<text x="30.0" y="59.0" font-size="15" fill="#5d6d7e" text-anchor="start">全部整数 / 位运算，无除法无三角函数；实测单帧（hanqtech 帧 164，DVF 输出 1,352）</text>
+<polygon points="24.0,150.0 202.0,150.0 220.0,220.0 202.0,290.0 24.0,290.0" fill="#fdf4e5" stroke="#c99a55" stroke-width="1.4" stroke-linejoin="round"/>
+<text x="122.0" y="184.0" font-size="13.5" fill="#6b4a10" text-anchor="middle" font-weight="600">① AABB + FoE</text>
+<text x="122.0" y="208.0" font-size="10.8" fill="#6b4a10" text-anchor="middle">ROI 裁剪 + 方向锥</text>
+<text x="122.0" y="258.0" font-size="11.5" fill="#1b2b3a" text-anchor="middle" font-weight="600">2,077 → 1,534 → 1,361</text>
+<polygon points="230.0,150.0 408.0,150.0 426.0,220.0 408.0,290.0 230.0,290.0 248.0,220.0" fill="#fdf4e5" stroke="#c99a55" stroke-width="1.4" stroke-linejoin="round"/>
+<text x="336.0" y="184.0" font-size="13.5" fill="#6b4a10" text-anchor="middle" font-weight="600">② 柱体位图</text>
+<text x="336.0" y="208.0" font-size="10.8" fill="#6b4a10" text-anchor="middle">每 cell 一个 uint32</text>
+<text x="336.0" y="258.0" font-size="11.5" fill="#1b2b3a" text-anchor="middle" font-weight="600">1,361</text>
+<polygon points="436.0,150.0 614.0,150.0 632.0,220.0 614.0,290.0 436.0,290.0 454.0,220.0" fill="#fdf4e5" stroke="#c99a55" stroke-width="1.4" stroke-linejoin="round"/>
+<text x="542.0" y="184.0" font-size="13.5" fill="#6b4a10" text-anchor="middle" font-weight="600">③ 地面剥离</text>
+<text x="542.0" y="208.0" font-size="10.8" fill="#6b4a10" text-anchor="middle">CTZ32 找最低层</text>
+<text x="542.0" y="258.0" font-size="11.5" fill="#1b2b3a" text-anchor="middle" font-weight="600">1,356</text>
+<polygon points="642.0,150.0 820.0,150.0 838.0,220.0 820.0,290.0 642.0,290.0 660.0,220.0" fill="#fdf4e5" stroke="#c99a55" stroke-width="1.4" stroke-linejoin="round"/>
+<text x="748.0" y="184.0" font-size="13.5" fill="#6b4a10" text-anchor="middle" font-weight="600">④ 极坐标外壳</text>
+<text x="748.0" y="208.0" font-size="10.8" fill="#6b4a10" text-anchor="middle">720 扇区 · 30 cm 壳</text>
+<text x="748.0" y="258.0" font-size="11.5" fill="#1b2b3a" text-anchor="middle" font-weight="600">1,352</text>
+<polygon points="848.0,150.0 1026.0,150.0 1044.0,220.0 1026.0,290.0 848.0,290.0 866.0,220.0" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.4" stroke-linejoin="round"/>
+<text x="954.0" y="184.0" font-size="13.5" fill="#2e7d32" text-anchor="middle" font-weight="600">⑤ 配额熔断</text>
+<text x="954.0" y="208.0" font-size="10.8" fill="#1e5a30" text-anchor="middle">近场优先 · ≤15,000</text>
+<text x="954.0" y="258.0" font-size="11.5" fill="#1b2b3a" text-anchor="middle" font-weight="600">1,352</text>
+<rect x="24.0" y="96.0" width="150.0" height="30.0" rx="15.0" fill="#ffffff" stroke="#1e5a96" stroke-width="1.3"/>
+<text x="99.0" y="115.5" font-size="12.5" fill="#1e5a96" text-anchor="middle" font-weight="600">输入 2,077 点</text>
+<line x1="99.0" y1="128.0" x2="99.0" y2="148.0" stroke="#1e5a96" stroke-width="1.8" marker-end="url(#arb)"/>
+<text x="178.0" y="116.0" font-size="11.5" fill="#5d6d7e" text-anchor="start">体素表导出点（NFVoxelEntry）</text>
+<rect x="24.0" y="318.0" width="512.0" height="76.0" rx="7" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.1"/>
+<text x="40.0" y="342.0" font-size="13" fill="#2e7d32" text-anchor="start" font-weight="600">实测产出</text>
+<text x="40.0" y="364.0" font-size="11.5" fill="#1e5a30" text-anchor="start">1,352 点 / 1,352 个底面柱；各阶段只剔除 2.3%（1534→1352）</text>
+<text x="40.0" y="382.0" font-size="11.5" fill="#1e5a30" text-anchor="start">说明当前真实点云本身已很稀疏，精简器的价值在稠密场景</text>
+<rect x="552.0" y="318.0" width="504.0" height="76.0" rx="7" fill="#edf3fa" stroke="#1e5a96" stroke-width="1.1"/>
+<text x="568.0" y="342.0" font-size="13" fill="#1e5a96" text-anchor="start" font-weight="600">性能（probe_dvf_perf，15 万合成点）</text>
+<text x="568.0" y="364.0" font-size="11.5" fill="#33475b" text-anchor="start">1.83 ms，输出 2,070 点，截断 0</text>
+<text x="568.0" y="382.0" font-size="11.5" fill="#33475b" text-anchor="start">墙钟随负载波动：此前同一探针记录为 1.06 ms</text>
+<text x="24.0" y="416.0" font-size="12.5" fill="#8794a3" text-anchor="start">阶段 4 必须回到原始点数组取坐标：位图只记「层是否存在」，恢复不出 sqrt(x²+y²)。</text>
+</svg>

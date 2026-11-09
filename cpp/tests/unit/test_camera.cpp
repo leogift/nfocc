@@ -6,6 +6,7 @@
 #include "nfocc/nfocc_camera.h"
 #include "nfocc/nfocc_vcam_bridge.h"
 #include "nfocc/nfocc_default.h"
+#include "nfocc/nfocc_viewplan.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -191,6 +192,25 @@ NF_TEST(cam_null_safety) {
     NFCameraModel cam = default_cam();
     cam.version = 999;
     NF_CHECK_STATUS(nf_cam_validate(&cam), NF_E_PARAM_VERSION);
+}
+
+/* 坐标约定回归：ISO 8855 的 Y 向左，所以 ML=+90°、MR=−90°。
+ * 若有人把 Y 改成"向右"，这两个符号必须同时翻；本测试会先失败。 */
+NF_TEST(convention_viewplan_yaw_signs) {
+    NFViewPlanEntry e[8];
+    const nf_u32 n = nf_viewplan_default(e, 8);
+    NF_CHECK_EQ_INT((int)n, 6);
+
+    bool ml = false, mr = false, fv_p = false, fv_n = false;
+    for (nf_u32 i = 0; i < n; ++i) {
+        if (e[i].cam_id == 2u && std::fabs(e[i].yaw_deg - 90.0f) < 1e-3f) ml = true;
+        if (e[i].cam_id == 3u && std::fabs(e[i].yaw_deg + 90.0f) < 1e-3f) mr = true;
+        if (e[i].cam_id == 0u && std::fabs(e[i].yaw_deg - 45.0f) < 1e-3f) fv_p = true;
+        if (e[i].cam_id == 0u && std::fabs(e[i].yaw_deg + 45.0f) < 1e-3f) fv_n = true;
+    }
+    NF_CHECK_MSG(ml, "ML 视口 yaw=+90°（+Y 为左）");
+    NF_CHECK_MSG(mr, "MR 视口 yaw=−90°（−Y 为右）");
+    NF_CHECK_MSG(fv_p && fv_n, "FV 视口 ±45° 成对");
 }
 
 } // namespace

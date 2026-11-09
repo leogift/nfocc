@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 470" width="1080" height="470">
+<rect width="1080" height="470" fill="#ffffff"/>
+<style>text{font-family:"PingFang SC","Hiragino Sans GB","Heiti SC",sans-serif;}.mono{font-family:"SF Mono","Menlo",monospace;}</style>
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#456"/></marker>
+<marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1e5a96"/></marker>
+<marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2e7d32"/></marker>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#c0392b"/></marker>
+</defs>
+<text x="30.0" y="34.0" font-size="25" fill="#1b2b3a" text-anchor="start" font-weight="600">代码规模与工程构成</text>
+<text x="30.0" y="59.0" font-size="15" fill="#5d6d7e" text-anchor="start">cpp/src 实现 7,575 行，公共头 3,429 行；测试代码 5,494 行，与实现比 0.73</text>
+<text x="110.0" y="84.0" font-size="14" fill="#1b2b3a" text-anchor="start" font-weight="600">各模块实现行数（cpp/src）</text>
+<text x="98.0" y="119.0" font-size="13.5" fill="#5d6d7e" text-anchor="end">io</text>
+<rect x="110.0" y="105.0" width="420.0" height="19.0" rx="3" fill="#eef1f4"/>
+<rect x="110.0" y="105.0" width="397.3" height="19.0" rx="3" fill="#1e5a96"/>
+<text x="515.3" y="120.0" font-size="12.5" fill="#33475b" text-anchor="start" font-weight="600">1,608</text>
+<text x="98.0" y="149.0" font-size="13.5" fill="#5d6d7e" text-anchor="end">voxel</text>
+<rect x="110.0" y="135.0" width="420.0" height="19.0" rx="3" fill="#eef1f4"/>
+<rect x="110.0" y="135.0" width="267.1" height="19.0" rx="3" fill="#1e5a96"/>
+<text x="385.1" y="150.0" font-size="12.5" fill="#33475b" text-anchor="start" font-weight="600">1,081</text>
+<text x="98.0" y="179.0" font-size="13.5" fill="#5d6d7e" text-anchor="end">pipeline</text>
+<rect x="110.0" y="165.0" width="420.0" height="19.0" rx="3" fill="#eef1f4"/>
+<rect x="110.0" y="165.0" width="251.3" height="19.0" rx="3" fill="#1e5a96"/>
+<text x="369.3" y="180.0" font-size="12.5" fill="#33475b" text-anchor="start" font-weight="600">1,017</text>
+<text x="98.0" y="209.0" font-size="13.5" fill="#5d6d7e" text-anchor="end">geometry</text>
+<rect x="110.0" y="195.0" width="420.0" height="19.0" rx="3" fill="#eef1f4"/>
+<rect x="110.0" y="195.0" width="231.7" height="19.0" rx="3" fill="#1e5a96"/>
+<text x="349.7" y="210.0" font-size="12.5" fill="#33475b" text-anchor="start" font-weight="600">938</text>
+<text x="98.0" y="239.0" font-size="13.5" fill="#5d6d7e" text-anchor="end">lut</text>
+<rect x="110.0" y="225.0" width="420.0" height="19.0" rx="3" fill="#eef1f4"/>
+<rect x="110.0" y="225.0" width="162.3" height="19.0" rx="3" fill="#1e5a96"/>
+<text x="280.3" y="240.0" font-size="12.5" fill="#33475b" text-anchor="start" font-weight="600">657</text>
+<text x="98.0" y="269.0" font-size="13.5" fill="#5d6d7e" text-anchor="end">cluster</text>
+<rect x="110.0" y="255.0" width="420.0" height="19.0" rx="3" fill="#eef1f4"/>
+<rect x="110.0" y="255.0" width="159.8" height="19.0" rx="3" fill="#1e5a96"/>
+<text x="277.8" y="270.0" font-size="12.5" fill="#33475b" text-anchor="start" font-weight="600">647</text>
+<text x="98.0" y="299.0" font-size="13.5" fill="#5d6d7e" text-anchor="end">camera</text>
+<rect x="110.0" y="285.0" width="420.0" height="19.0" rx="3" fill="#eef1f4"/>
+<rect x="110.0" y="285.0" width="107.0" height="19.0" rx="3" fill="#1e5a96"/>
+<text x="225.0" y="300.0" font-size="12.5" fill="#33475b" text-anchor="start" font-weight="600">433</text>
+<text x="98.0" y="329.0" font-size="13.5" fill="#5d6d7e" text-anchor="end">engine</text>
+<rect x="110.0" y="315.0" width="420.0" height="19.0" rx="3" fill="#eef1f4"/>
+<rect x="110.0" y="315.0" width="102.8" height="19.0" rx="3" fill="#1e5a96"/>
+<text x="220.8" y="330.0" font-size="12.5" fill="#33475b" text-anchor="start" font-weight="600">416</text>
+<text x="98.0" y="359.0" font-size="13.5" fill="#5d6d7e" text-anchor="end">util</text>
+<rect x="110.0" y="345.0" width="420.0" height="19.0" rx="3" fill="#eef1f4"/>
+<rect x="110.0" y="345.0" width="97.6" height="19.0" rx="3" fill="#1e5a96"/>
+<text x="215.6" y="360.0" font-size="12.5" fill="#33475b" text-anchor="start" font-weight="600">395</text>
+<text x="98.0" y="389.0" font-size="13.5" fill="#5d6d7e" text-anchor="end">baseline</text>
+<rect x="110.0" y="375.0" width="420.0" height="19.0" rx="3" fill="#eef1f4"/>
+<rect x="110.0" y="375.0" width="94.6" height="19.0" rx="3" fill="#1e5a96"/>
+<text x="212.6" y="390.0" font-size="12.5" fill="#33475b" text-anchor="start" font-weight="600">383</text>
+<text x="640.0" y="84.0" font-size="14" fill="#1b2b3a" text-anchor="start" font-weight="600">工程构成（实测）</text>
+<rect x="640.0" y="106.0" width="410.0" height="36.0" rx="5" fill="#ffffff" stroke="#dfe5ec" stroke-width="1"/>
+<text x="652.0" y="129.0" font-size="13.5" fill="#5d6d7e" text-anchor="start">核心实现</text>
+<text x="758.0" y="129.0" font-size="15" fill="#1e5a96" text-anchor="start" font-weight="600">7,575</text>
+<text x="855.0" y="129.0" font-size="12" fill="#8794a3" text-anchor="start">cpp/src，10 个模块</text>
+<rect x="640.0" y="150.0" width="410.0" height="36.0" rx="5" fill="#ffffff" stroke="#dfe5ec" stroke-width="1"/>
+<text x="652.0" y="173.0" font-size="13.5" fill="#5d6d7e" text-anchor="start">公共头文件</text>
+<text x="758.0" y="173.0" font-size="15" fill="#1e5a96" text-anchor="start" font-weight="600">3,429</text>
+<text x="855.0" y="173.0" font-size="12" fill="#8794a3" text-anchor="start">cpp/include，契约与文档</text>
+<rect x="640.0" y="194.0" width="410.0" height="36.0" rx="5" fill="#ffffff" stroke="#dfe5ec" stroke-width="1"/>
+<text x="652.0" y="217.0" font-size="13.5" fill="#5d6d7e" text-anchor="start">合计</text>
+<text x="758.0" y="217.0" font-size="15" fill="#1e5a96" text-anchor="start" font-weight="600">11,004</text>
+<text x="855.0" y="217.0" font-size="12" fill="#8794a3" text-anchor="start">src + include</text>
+<rect x="640.0" y="238.0" width="410.0" height="36.0" rx="5" fill="#ffffff" stroke="#dfe5ec" stroke-width="1"/>
+<text x="652.0" y="261.0" font-size="13.5" fill="#5d6d7e" text-anchor="start">测试</text>
+<text x="758.0" y="261.0" font-size="15" fill="#1e5a96" text-anchor="start" font-weight="600">5,494</text>
+<text x="855.0" y="261.0" font-size="12" fill="#8794a3" text-anchor="start">21 个 ctest 目标</text>
+<rect x="640.0" y="282.0" width="410.0" height="36.0" rx="5" fill="#ffffff" stroke="#dfe5ec" stroke-width="1"/>
+<text x="652.0" y="305.0" font-size="13.5" fill="#5d6d7e" text-anchor="start">工具</text>
+<text x="758.0" y="305.0" font-size="15" fill="#1e5a96" text-anchor="start" font-weight="600">2,555</text>
+<text x="855.0" y="305.0" font-size="12" fill="#8794a3" text-anchor="start">run / viz / probe</text>
+<rect x="640.0" y="326.0" width="410.0" height="36.0" rx="5" fill="#ffffff" stroke="#dfe5ec" stroke-width="1"/>
+<text x="652.0" y="349.0" font-size="13.5" fill="#5d6d7e" text-anchor="start">文档</text>
+<text x="758.0" y="349.0" font-size="15" fill="#1e5a96" text-anchor="start" font-weight="600">42 篇</text>
+<text x="855.0" y="349.0" font-size="12" fill="#8794a3" text-anchor="start">docs/*.md，自检全绿</text>
+<rect x="640.0" y="370.0" width="410.0" height="36.0" rx="5" fill="#ffffff" stroke="#dfe5ec" stroke-width="1"/>
+<text x="652.0" y="393.0" font-size="13.5" fill="#5d6d7e" text-anchor="start">提交</text>
+<text x="758.0" y="393.0" font-size="15" fill="#1e5a96" text-anchor="start" font-weight="600">42 次</text>
+<text x="855.0" y="393.0" font-size="12" fill="#8794a3" text-anchor="start">2026-11-01 → 11-03</text>
+<text x="30.0" y="426.0" font-size="12.5" fill="#8794a3" text-anchor="start">行数含空行与注释；不含 third_party。测试/实现 = 5,494/7,575 = 0.73。</text>
+</svg>

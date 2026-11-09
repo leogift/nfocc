@@ -19,6 +19,22 @@ v_V = R · v_C + t         NFPose（R 的**列**是相机轴在车系下的方�
 v_S = Rz(-yaw) · v_V      虚拟视口系 = 车系绕 Z 轴反向转 yaw
 ```
 
+### 1.1 为什么 Y 必须向左
+
+ISO 8855 是右手系：`X × Y = Z`。X 向前、Z 向上时，Y 只能向左；写
+"X 前 / Y 右 / Z 上"会得到左手系（前 × 右 = 下），与 ISO 8855 矛盾。
+后果不是注释错，而是 MVL/MVR 与 ML/MR 视口整体翻面、外参 Y 符号、
+掩码和镜像判据全反。
+
+hanqtech 标定提供了独立证据：`00165_MVL.json` 的 translation y=+0.957 m，
+`00166_MVR.json` 为 −0.957 m。MVL 在 +Y，即 +Y = 左。
+
+本项目按 **X 前、Y 左、Z 上** 实现；若上游/实车确实使用 Y 右，必须先做
+一次全链路坐标迁移（外参、viewplan yaw、D1 掩码、SGBM mirror、测试），
+不能只改文档或某一个符号。回归测试见 `test_camera.cpp::convention_viewplan_yaw_signs`
+与 `test_hanqtech.cpp::ws_ego_y_axis_left`。
+
+
 ---
 
 ## 2. t_cam 语义（本节就是 G2 的结论）

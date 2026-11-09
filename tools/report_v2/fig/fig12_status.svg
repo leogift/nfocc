@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 790" width="1080" height="790">
+<rect width="1080" height="790" fill="#ffffff"/>
+<style>text{font-family:"PingFang SC","Hiragino Sans GB","Heiti SC",sans-serif;}.mono{font-family:"SF Mono","Menlo",monospace;}</style>
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#456"/></marker>
+<marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1e5a96"/></marker>
+<marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2e7d32"/></marker>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#c0392b"/></marker>
+</defs>
+<text x="30.0" y="34.0" font-size="25" fill="#1b2b3a" text-anchor="start" font-weight="600">开发进展看板</text>
+<text x="30.0" y="59.0" font-size="15" fill="#5d6d7e" text-anchor="start">2026-11-09 复核；「部分」= 代码已实现且单测通过，但主链未接入或依赖外部数据</text>
+<rect x="760.0" y="24.0" width="14.0" height="14.0" rx="3" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.3"/>
+<text x="779.0" y="36.0" font-size="12" fill="#5d6d7e" text-anchor="start">已完成</text>
+<rect x="852.0" y="24.0" width="14.0" height="14.0" rx="3" fill="#fdf4e5" stroke="#b26a00" stroke-width="1.3"/>
+<text x="871.0" y="36.0" font-size="12" fill="#5d6d7e" text-anchor="start">部分</text>
+<rect x="944.0" y="24.0" width="14.0" height="14.0" rx="3" fill="#fbeceb" stroke="#c0392b" stroke-width="1.3"/>
+<text x="963.0" y="36.0" font-size="12" fill="#5d6d7e" text-anchor="start">未做</text>
+<rect x="24.0" y="76.0" width="505.0" height="48.0" rx="5" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.2"/>
+<text x="36.0" y="96.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">相机模型 KB / 径向多项式</text>
+<text x="36.0" y="114.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">vcam 交叉校验 0.00008 px</text>
+<rect x="24.0" y="132.0" width="505.0" height="48.0" rx="5" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.2"/>
+<text x="36.0" y="152.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">虚拟视口 LUT</text>
+<text x="36.0" y="170.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">4 路 150°×1024，f=137.19</text>
+<rect x="24.0" y="188.0" width="505.0" height="48.0" rx="5" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.2"/>
+<text x="36.0" y="208.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">SGBM 引擎</text>
+<text x="36.0" y="226.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">确定性、容量断言、无效语义</text>
+<rect x="24.0" y="244.0" width="505.0" height="48.0" rx="5" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.2"/>
+<text x="36.0" y="264.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">前向径向解析测距</text>
+<text x="36.0" y="282.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">合成单测 6/6；真实直行在用</text>
+<rect x="24.0" y="300.0" width="505.0" height="48.0" rx="5" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.2"/>
+<text x="36.0" y="320.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">射线三角化</text>
+<text x="36.0" y="338.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">闭式解，float32 稳定</text>
+<rect x="24.0" y="356.0" width="505.0" height="48.0" rx="5" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.2"/>
+<text x="36.0" y="376.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">体素 Hash + CMA</text>
+<text x="36.0" y="394.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">开放寻址、σ 取最小</text>
+<rect x="24.0" y="412.0" width="505.0" height="48.0" rx="5" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.2"/>
+<text x="36.0" y="432.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">σ 传播 + 80 cm 截断</text>
+<text x="36.0" y="450.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">1 m 2 cm → 8 m 85 cm</text>
+<rect x="24.0" y="468.0" width="505.0" height="48.0" rx="5" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.2"/>
+<text x="36.0" y="488.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">D4 交叉验证</text>
+<text x="36.0" y="506.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">已接主链，默认关闭</text>
+<rect x="24.0" y="524.0" width="505.0" height="48.0" rx="5" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.2"/>
+<text x="36.0" y="544.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">双基线状态机</text>
+<text x="36.0" y="562.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">278→556 mm 晋升，默认关闭</text>
+<rect x="24.0" y="580.0" width="505.0" height="48.0" rx="5" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.2"/>
+<text x="36.0" y="600.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">DVF 五阶段精简</text>
+<text x="36.0" y="618.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">1,352 点 / 1.83 ms@150k</text>
+<rect x="24.0" y="636.0" width="505.0" height="48.0" rx="5" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.2"/>
+<text x="36.0" y="656.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">网格哈希 + DBSCAN</text>
+<text x="36.0" y="674.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">150k 均匀 54 ms</text>
+<rect x="24.0" y="692.0" width="505.0" height="48.0" rx="5" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.2"/>
+<text x="36.0" y="712.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">动静分离</text>
+<text x="36.0" y="730.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">点级速度 + 簇级投票</text>
+<rect x="549.0" y="76.0" width="505.0" height="48.0" rx="5" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.2"/>
+<text x="561.0" y="96.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">ZMQ 零拷贝</text>
+<text x="561.0" y="114.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">收发双向，含负对照</text>
+<rect x="549.0" y="132.0" width="505.0" height="48.0" rx="5" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.2"/>
+<text x="561.0" y="152.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">跨平台构建</text>
+<text x="561.0" y="170.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">macOS / Linux / aarch64</text>
+<rect x="549.0" y="188.0" width="505.0" height="48.0" rx="5" fill="#fdf4e5" stroke="#b26a00" stroke-width="1.2"/>
+<text x="561.0" y="208.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">D1 车身掩码</text>
+<text x="561.0" y="226.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">矩形占位，侧视挖 77%</text>
+<rect x="549.0" y="244.0" width="505.0" height="48.0" rx="5" fill="#fdf4e5" stroke="#b26a00" stroke-width="1.2"/>
+<text x="561.0" y="264.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">六视口规划</text>
+<text x="561.0" y="282.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">规划表有，主链仍 4 视口</text>
+<rect x="549.0" y="300.0" width="505.0" height="48.0" rx="5" fill="#fdf4e5" stroke="#b26a00" stroke-width="1.2"/>
+<text x="561.0" y="320.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">D2 双向一致性</text>
+<text x="561.0" y="338.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">函数有，主链 0 处调用</text>
+<rect x="549.0" y="356.0" width="505.0" height="48.0" rx="5" fill="#fdf4e5" stroke="#b26a00" stroke-width="1.2"/>
+<text x="561.0" y="376.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">aarch64 上板</text>
+<text x="561.0" y="394.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">产物已出，未在真机运行</text>
+<rect x="549.0" y="412.0" width="505.0" height="48.0" rx="5" fill="#fbeceb" stroke="#c0392b" stroke-width="1.2"/>
+<text x="561.0" y="432.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">精度验收</text>
+<text x="561.0" y="450.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">4/4 段未达，唯一失败测试</text>
+<rect x="549.0" y="468.0" width="505.0" height="48.0" rx="5" fill="#fbeceb" stroke="#c0392b" stroke-width="1.2"/>
+<text x="561.0" y="488.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">FORWARD 性能</text>
+<text x="561.0" y="506.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">有效帧 11.2 s，超预算 56×</text>
+<rect x="549.0" y="524.0" width="505.0" height="48.0" rx="5" fill="#fbeceb" stroke="#c0392b" stroke-width="1.2"/>
+<text x="561.0" y="544.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">地面以下点 -498 mm</text>
+<text x="561.0" y="562.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">真实数据可复现，未查明</text>
+<rect x="549.0" y="580.0" width="505.0" height="48.0" rx="5" fill="#fbeceb" stroke="#c0392b" stroke-width="1.2"/>
+<text x="561.0" y="600.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">在线自校准</text>
+<text x="561.0" y="618.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">方案已定，未实现</text>
+<rect x="549.0" y="636.0" width="505.0" height="48.0" rx="5" fill="#fbeceb" stroke="#c0392b" stroke-width="1.2"/>
+<text x="561.0" y="656.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">NPU 后端</text>
+<text x="561.0" y="674.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">模型引擎仍 UNSUPPORTED</text>
+<rect x="549.0" y="692.0" width="505.0" height="48.0" rx="5" fill="#fbeceb" stroke="#c0392b" stroke-width="1.2"/>
+<text x="561.0" y="712.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">深度真值</text>
+<text x="561.0" y="730.0" font-size="10.8" fill="#5b6b7c" text-anchor="start">数据集只有 ego 与图像</text>
+<text x="24.0" y="776.0" font-size="12.5" fill="#8794a3" text-anchor="start">统计口径：24 项中 14 项完成、4 项部分、6 项未做。「部分」最容易被误报为完成 —— 函数在、测试绿、系统不调用。</text>
+</svg>

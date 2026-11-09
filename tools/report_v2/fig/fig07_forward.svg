@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 520" width="1080" height="520">
+<rect width="1080" height="520" fill="#ffffff"/>
+<style>text{font-family:"PingFang SC","Hiragino Sans GB","Heiti SC",sans-serif;}.mono{font-family:"SF Mono","Menlo",monospace;}</style>
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#456"/></marker>
+<marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1e5a96"/></marker>
+<marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2e7d32"/></marker>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#c0392b"/></marker>
+</defs>
+<text x="30.0" y="34.0" font-size="25" fill="#1b2b3a" text-anchor="start" font-weight="600">前向为什么不能用 SGBM：径向膨胀的解析测距</text>
+<text x="30.0" y="59.0" font-size="15" fill="#5d6d7e" text-anchor="start">纯前向平移下，像移从 FoE 辐射、跨 FoE 方向翻转；水平视差搜索失去意义</text>
+<line x1="110.0" y1="400.0" x2="340.0" y2="400.0" stroke="#5d6d7e" stroke-width="2.2"/>
+<line x1="110.0" y1="418.0" x2="340.0" y2="418.0" stroke="#5d6d7e" stroke-width="1.6" marker-end="url(#ar)"/>
+<text x="225.0" y="442.0" font-size="12.5" fill="#5d6d7e" text-anchor="middle">t（帧间位移）</text>
+<line x1="110.0" y1="400.0" x2="300.0" y2="150.0" stroke="#1e5a96" stroke-width="2.4"/>
+<line x1="340.0" y1="400.0" x2="300.0" y2="150.0" stroke="#2e7d32" stroke-width="2.4"/>
+<circle cx="110.0" cy="400.0" r="7.0" fill="#ffffff" stroke="#1b2b3a" stroke-width="1.8"/>
+<circle cx="340.0" cy="400.0" r="7.0" fill="#ffffff" stroke="#1b2b3a" stroke-width="1.8"/>
+<circle cx="300.0" cy="150.0" r="6.0" fill="#c0392b" stroke="#c0392b" stroke-width="1"/>
+<text x="90.0" y="424.0" font-size="14" fill="#1b2b3a" text-anchor="start" font-weight="600">O0</text>
+<text x="350.0" y="424.0" font-size="14" fill="#1b2b3a" text-anchor="start" font-weight="600">O1</text>
+<text x="312.0" y="142.0" font-size="14" fill="#c0392b" text-anchor="start" font-weight="600">P</text>
+<text x="185.0" y="258.0" font-size="12.5" fill="#1e5a96" text-anchor="start">u（参考帧）</text>
+<text x="325.0" y="258.0" font-size="12.5" fill="#2e7d32" text-anchor="start">v（当前帧）</text>
+<text x="58.0" y="120.0" font-size="13" fill="#5d6d7e" text-anchor="start">q0 = Z·u，q1 = q0 − t</text>
+<rect x="590.0" y="92.0" width="460.0" height="128.0" rx="9" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.4"/>
+<text x="612.0" y="118.0" font-size="13" fill="#2e7d32" text-anchor="start" font-weight="600">解析解（对任意平移方向成立）</text>
+<text x="612.0" y="156.0" font-size="21" fill="#1b2b3a" text-anchor="start" font-weight="600">Z = Σ[(u×v)·(t×v)] / Σ‖u×v‖²</text>
+<text x="612.0" y="186.0" font-size="11.5" fill="#5d6d7e" text-anchor="start">无需迭代；u、v 为两帧同一像素的视线单位向量</text>
+<rect x="590.0" y="240.0" width="460.0" height="96.0" rx="8" fill="#fbeceb" stroke="#c0392b" stroke-width="1.1"/>
+<text x="606.0" y="264.0" font-size="13" fill="#c0392b" text-anchor="start" font-weight="600">SGBM 失效的实测证据</text>
+<text x="606.0" y="286.0" font-size="11.8" fill="#7a3b33" text-anchor="start">合成墙面真值 140.8 px → SGBM 输出 2.2 px</text>
+<text x="606.0" y="306.0" font-size="11.8" fill="#7a3b33" text-anchor="start">偏置随基线严格成正比（278→−34 px，556→−61 px）</text>
+<text x="606.0" y="326.0" font-size="11.8" fill="#7a3b33" text-anchor="start">→ 锁到固定错误周期，不是随机噪声</text>
+<rect x="590.0" y="352.0" width="460.0" height="96.0" rx="8" fill="#edf3fa" stroke="#1e5a96" stroke-width="1.1"/>
+<text x="606.0" y="376.0" font-size="13" fill="#1e5a96" text-anchor="start" font-weight="600">实现链</text>
+<text x="606.0" y="398.0" font-size="11.5" fill="#33475b" text-anchor="start">径向一维搜索 → 膨胀率 → 两帧射线 → 闭式解 → FoE 锥过滤</text>
+<text x="606.0" y="418.0" font-size="11.5" fill="#33475b" text-anchor="start">输出距离是 |q0|，不是光轴深度 q0.z —— 混用会差数倍</text>
+<text x="606.0" y="438.0" font-size="11.5" fill="#33475b" text-anchor="start">合成单测：6 个距离点全部通过（forward_range_exact）</text>
+<text x="24.0" y="458.0" font-size="11.5" fill="#8794a3" text-anchor="start">注：SGBM 失效与左右图顺序的数据来自 2026-11-02 视差探针，本次未复测。</text>
+<text x="24.0" y="482.0" font-size="12.5" fill="#8794a3" text-anchor="start">真实直行数据走此分支，有效帧 11.2 s；耗时在径向标量搜索，不在解析解本身。</text>
+</svg>

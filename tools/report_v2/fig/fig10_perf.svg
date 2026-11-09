@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 540" width="1080" height="540">
+<rect width="1080" height="540" fill="#ffffff"/>
+<style>text{font-family:"PingFang SC","Hiragino Sans GB","Heiti SC",sans-serif;}.mono{font-family:"SF Mono","Menlo",monospace;}</style>
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#456"/></marker>
+<marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1e5a96"/></marker>
+<marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2e7d32"/></marker>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#c0392b"/></marker>
+</defs>
+<text x="30.0" y="34.0" font-size="25" fill="#1b2b3a" text-anchor="start" font-weight="600">实测延时的两种口径</text>
+<text x="30.0" y="59.0" font-size="15" fill="#5d6d7e" text-anchor="start">「有效帧」是真正跑完匹配的那一帧；「摊薄」把冻结帧也算进平均</text>
+<text x="270.0" y="82.0" font-size="13" fill="#5d6d7e" text-anchor="start">耗时（ms，对数轴）</text>
+<line x1="270.0" y1="92.0" x2="270.0" y2="428.0" stroke="#e5eaf0" stroke-width="0.9" stroke-dasharray="3 3"/>
+<text x="270.0" y="446.0" font-size="12" fill="#5d6d7e" text-anchor="middle">1</text>
+<line x1="409.5" y1="92.0" x2="409.5" y2="428.0" stroke="#e5eaf0" stroke-width="0.9" stroke-dasharray="3 3"/>
+<text x="409.5" y="446.0" font-size="12" fill="#5d6d7e" text-anchor="middle">10</text>
+<line x1="549.0" y1="92.0" x2="549.0" y2="428.0" stroke="#e5eaf0" stroke-width="0.9" stroke-dasharray="3 3"/>
+<text x="549.0" y="446.0" font-size="12" fill="#5d6d7e" text-anchor="middle">100</text>
+<line x1="688.5" y1="92.0" x2="688.5" y2="428.0" stroke="#e5eaf0" stroke-width="0.9" stroke-dasharray="3 3"/>
+<text x="688.5" y="446.0" font-size="12" fill="#5d6d7e" text-anchor="middle">1000</text>
+<line x1="828.0" y1="92.0" x2="828.0" y2="428.0" stroke="#e5eaf0" stroke-width="0.9" stroke-dasharray="3 3"/>
+<text x="828.0" y="446.0" font-size="12" fill="#5d6d7e" text-anchor="middle">10000</text>
+<text x="256.0" y="114.0" font-size="13" fill="#1b2b3a" text-anchor="end" font-weight="600">FORWARD 有效帧</text>
+<rect x="270.0" y="101.0" width="564.8" height="24.0" rx="3" fill="#c0392b"/>
+<text x="842.8" y="118.0" font-size="12" fill="#c0392b" text-anchor="start" font-weight="600">11,188 ms</text>
+<text x="940.0" y="118.0" font-size="10" fill="#8794a3" text-anchor="start">2 路前向</text>
+<text x="256.0" y="162.0" font-size="13" fill="#1b2b3a" text-anchor="end" font-weight="600">FORWARD 3 帧摊薄</text>
+<rect x="270.0" y="149.0" width="498.3" height="24.0" rx="3" fill="#b26a00"/>
+<text x="776.3" y="166.0" font-size="12" fill="#b26a00" text-anchor="start" font-weight="600">3,730 ms</text>
+<text x="940.0" y="166.0" font-size="10" fill="#8794a3" text-anchor="start">11.2s+2ms×2</text>
+<text x="256.0" y="210.0" font-size="13" fill="#1b2b3a" text-anchor="end" font-weight="600">STEREO 有效帧</text>
+<rect x="270.0" y="197.0" width="281.4" height="24.0" rx="3" fill="#2e7d32"/>
+<text x="559.4" y="214.0" font-size="12" fill="#2e7d32" text-anchor="start" font-weight="600">104 ms</text>
+<text x="940.0" y="214.0" font-size="10" fill="#8794a3" text-anchor="start">4 路 SGBM</text>
+<text x="256.0" y="258.0" font-size="13" fill="#1b2b3a" text-anchor="end" font-weight="600">STEREO 3 帧摊薄</text>
+<rect x="270.0" y="245.0" width="217.1" height="24.0" rx="3" fill="#17706e"/>
+<text x="495.1" y="262.0" font-size="12" fill="#17706e" text-anchor="start" font-weight="600">36 ms</text>
+<text x="940.0" y="262.0" font-size="10" fill="#8794a3" text-anchor="start">104ms+2ms</text>
+<text x="256.0" y="306.0" font-size="13" fill="#1b2b3a" text-anchor="end" font-weight="600">合成 STEREO</text>
+<rect x="270.0" y="293.0" width="261.6" height="24.0" rx="3" fill="#1e5a96"/>
+<text x="539.6" y="310.0" font-size="12" fill="#1e5a96" text-anchor="start" font-weight="600">75 ms</text>
+<text x="940.0" y="310.0" font-size="10" fill="#8794a3" text-anchor="start">合成场景</text>
+<text x="256.0" y="354.0" font-size="13" fill="#1b2b3a" text-anchor="end" font-weight="600">DBSCAN 150k</text>
+<rect x="270.0" y="341.0" width="241.7" height="24.0" rx="3" fill="#6a4c93"/>
+<text x="519.7" y="358.0" font-size="12" fill="#6a4c93" text-anchor="start" font-weight="600">54 ms</text>
+<text x="940.0" y="358.0" font-size="10" fill="#8794a3" text-anchor="start">均匀 150k</text>
+<text x="256.0" y="402.0" font-size="13" fill="#1b2b3a" text-anchor="end" font-weight="600">DVF 150k</text>
+<rect x="270.0" y="389.0" width="36.6" height="24.0" rx="3" fill="#8e6bb0"/>
+<text x="314.6" y="406.0" font-size="12" fill="#8e6bb0" text-anchor="start" font-weight="600">1.83 ms</text>
+<text x="940.0" y="406.0" font-size="10" fill="#8794a3" text-anchor="start">五阶段</text>
+<line x1="591.0" y1="82.0" x2="591.0" y2="432.0" stroke="#c0392b" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="597.0" y="78.0" font-size="12" fill="#c0392b" text-anchor="start" font-weight="600">5 Hz 预算 200 ms</text>
+<rect x="24.0" y="464.0" width="1032.0" height="46.0" rx="7" fill="#fbeceb" stroke="#c0392b" stroke-width="1.1"/>
+<text x="40.0" y="492.0" font-size="12.5" fill="#7a3b33" text-anchor="start" font-weight="600">FORWARD 超预算 56×；STEREO 有效帧 104 ms，在 200 ms 内但余量只剩 48%。</text>
+<text x="24.0" y="524.0" font-size="12.5" fill="#8794a3" text-anchor="start">所有数值同一台机器、Release、同日实测；未做负载隔离，绝对值为量级参考。</text>
+</svg>

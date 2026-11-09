@@ -239,3 +239,197 @@ NFStatus nf_depth_from_radial(const nf_f32 *pts, const nf_u8 *valid,
 }
 
 }  /* extern "C" */
+
+/* ==================== P1: 快速径向匹配 ==================== */
+/**
+ * 与 nf_match_radial 同一判据，但按 sample_step 采样、coarse_step 粗搜、
+ * 单遍统计、OpenMP 按行并行。块内邻居复制采样点的对应点；深度解算仍按
+ * 每个全分辨率像素自己的射线做，所以不会把邻居的像素坐标当成自己的。
+ */
+NFStatus nf_match_radial_fast(const nf_u8 *cur, const nf_u8 *ref,
+                              const nf_u8 *valid_cur,
+                              nf_u32 w, nf_u32 h, NFFoe foe,
+                              nf_f32 r_min, nf_f32 r_max,
+                              nf_u32 patch, nf_f32 ncc_min,
+                              nf_u32 sample_step, nf_f32 coarse_step,
+                              nf_f32 *out_cur, nf_f32 *out_conf,
+                              nf_u8 *out_valid) {
+    if (!cur || !ref || !out_cur || !out_conf || !out_valid) return NF_E_PARAM_NULL;
+    if (w == 0 || h == 0) return NF_E_PARAM_RANGE;
+    if (r_max <= r_min) return NF_E_PARAM_RANGE;
+    if (patch < 1 || patch > 4) return NF_E_PARAM_RANGE;
+    if (ncc_min < -1.0f || ncc_min > 1.0f) return NF_E_PARAM_RANGE;
+
+    if (sample_step < 1) sample_step = 1;
+    if (coarse_step < 0.5f) coarse_step = 0.5f;
+    const int step = (int)sample_step;
+    const int pr = (int)patch;
+    const float min_sep = 2.0f * (float)patch + 1.0f;
+
+    std::memset(out_valid, 0, (size_t)w * h);
+    std::memset(out_cur, 0, (size_t)w * h * 2 * sizeof(nf_f32));
+    std::memset(out_conf, 0, (size_t)w * h * sizeof(nf_f32));
+
+#ifdef NF_HAS_OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+    for (int yy = 0; yy < (int)h; yy += step) {
+        const nf_u32 y = (nf_u32)yy;
+        for (int xx = 0; xx < (int)w; xx += step) {
+            const nf_u32 x = (nf_u32)xx;
+            const nf_u32 idx = y * w + x;
+            if (valid_cur && !valid_cur[idx]) continue;
+
+            if ((int)x < pr || (int)y < pr
+                || (int)x + pr + 1 >= (int)w || (int)y + pr + 1 >= (int)h)
+                continue;
+
+            const float dx = (float)x - foe.u;
+            const float dy = (float)y - foe.v;
+            const float rho = std::sqrt(dx * dx + dy * dy);
+            if (rho < 4.0f) continue;
+            const float ux = dx / rho, uy = dy / rho;
+
+            /* ---- 粗搜 + 单遍统计 ---- */
+            float best_r = 0.0f, best_ncc = -2.0f, second_ncc = -2.0f;
+            double sum_ncc = 0.0, sum_sq = 0.0;
+            int n_cand = 0;
+            for (float r = r_min; r <= r_max; r += coarse_step) {
+                const float ncc = Ncc(cur, w, h, (float)x, (float)y,
+                                      ref, w, h,
+                                      (float)x + ux * r, (float)y + uy * r, patch);
+                if (ncc >= -1.5f) {
+                    sum_ncc += ncc;
+                    sum_sq += (double)ncc * ncc;
+                    ++n_cand;
+                }
+                if (ncc > best_ncc) {
+                    if (std::fabs(r - best_r) >= min_sep) second_ncc = best_ncc;
+                    best_ncc = ncc; best_r = r;
+                } else if (std::fabs(r - best_r) >= min_sep && ncc > second_ncc) {
+                    second_ncc = ncc;
+                }
+            }
+
+            /* ---- 主峰附近 0.5 px 细化 ---- */
+            {
+                const float lo = std::fmax(r_min, best_r - 2.0f * coarse_step);
+                const float hi = std::fmin(r_max, best_r + 2.0f * coarse_step);
+                for (float r = lo; r <= hi; r += 0.5f) {
+                    const float ncc = Ncc(cur, w, h, (float)x, (float)y,
+                                          ref, w, h,
+                                          (float)x + ux * r, (float)y + uy * r, patch);
+                    if (ncc > best_ncc) { best_ncc = ncc; best_r = r; }
+                }
+            }
+
+            if (best_ncc < ncc_min) continue;
+            if (second_ncc > -2.0f && best_ncc - second_ncc < 0.15f) continue;
+            if (n_cand >= 8) {
+                const double mean = sum_ncc / n_cand;
+                const double var = sum_sq / n_cand - mean * mean;
+                const double sd = var > 0.0 ? std::sqrt(var) : 0.0;
+                double k = 2.0 - 4.0 * ((double)best_ncc - 0.6);
+                if (k < 1.2) k = 1.2;
+                if (k > 2.0) k = 2.0;
+                if ((double)best_ncc - mean < k * sd) continue;
+            }
+
+            /* 三点抛物线亚像素 */
+            float r_fine = best_r;
+            if (best_r > r_min + 0.5f && best_r < r_max - 0.5f) {
+                const float n0 = Ncc(cur, w, h, (float)x, (float)y, ref, w, h,
+                                     (float)x + ux * best_r,
+                                     (float)y + uy * best_r, patch);
+                const float np = Ncc(cur, w, h, (float)x, (float)y, ref, w, h,
+                                     (float)x + ux * (best_r - 0.5f),
+                                     (float)y + uy * (best_r - 0.5f), patch);
+                const float nn = Ncc(cur, w, h, (float)x, (float)y, ref, w, h,
+                                     (float)x + ux * (best_r + 0.5f),
+                                     (float)y + uy * (best_r + 0.5f), patch);
+                const float den = np - 2.0f * n0 + nn;
+                if (std::fabs(den) > 1e-6f) {
+                    float delta = 0.5f * (np - nn) / den;
+                    if (delta > 1.0f) delta = 1.0f;
+                    if (delta < -1.0f) delta = -1.0f;
+                    r_fine = best_r + delta * 0.5f;
+                }
+            }
+
+            const float qx = (float)x + ux * r_fine;
+            const float qy = (float)y + uy * r_fine;
+            if (qx < (float)pr || qy < (float)pr
+                || qx + (float)pr >= (float)(w - 1)
+                || qy + (float)pr >= (float)(h - 1))
+                continue;
+
+            out_cur[idx * 2 + 0] = qx;
+            out_cur[idx * 2 + 1] = qy;
+            out_conf[idx] = best_ncc;
+            out_valid[idx] = 1;
+        }
+    }
+
+    /* ---- 采样点之间的径向位移做双线性插值 ----
+     *
+     * 最初这里直接把采样点的 q 复制到 2x2 块，结果 2-3 m 表面中位
+     * 从 222 涨到 261 mm：四个像素共用同一个对应点，块边缘的深度
+     * 被拉偏。改成插值"径向位移 r"（而不是 q）—— 每个全分辨率像素
+     * 仍沿自己的射线 u 算 q = p + u·r，深度用各自射线解算。
+     */
+    if (step > 1) {
+        for (nf_u32 y = 0; y < h; ++y) {
+            for (nf_u32 x = 0; x < w; ++x) {
+                if ((x % (nf_u32)step) == 0u && (y % (nf_u32)step) == 0u)
+                    continue;
+                const nf_u32 x0 = (x / (nf_u32)step) * (nf_u32)step;
+                const nf_u32 y0 = (y / (nf_u32)step) * (nf_u32)step;
+                const nf_u32 x1 = x0 + (nf_u32)step;
+                const nf_u32 y1 = y0 + (nf_u32)step;
+                if (x1 >= w || y1 >= h) continue;
+                const nf_u32 i00 = y0 * w + x0, i10 = y0 * w + x1;
+                const nf_u32 i01 = y1 * w + x0, i11 = y1 * w + x1;
+                if (!out_valid[i00] || !out_valid[i10] ||
+                    !out_valid[i01] || !out_valid[i11]) continue;
+
+                /* 采样点的径向位移 r = |q − a| − |p − a| */
+                auto rad_at = [&](nf_u32 px, nf_u32 py, nf_u32 idx) {
+                    const float qx = out_cur[idx * 2 + 0];
+                    const float qy = out_cur[idx * 2 + 1];
+                    const float dqx = qx - foe.u, dqy = qy - foe.v;
+                    const float dpx = (float)px - foe.u, dpy = (float)py - foe.v;
+                    return std::sqrt(dqx * dqx + dqy * dqy)
+                         - std::sqrt(dpx * dpx + dpy * dpy);
+                };
+                const float r00 = rad_at(x0, y0, i00);
+                const float r10 = rad_at(x1, y0, i10);
+                const float r01 = rad_at(x0, y1, i01);
+                const float r11 = rad_at(x1, y1, i11);
+                const float fx = (float)(x - x0) / (float)step;
+                const float fy = (float)(y - y0) / (float)step;
+                const float r0 = r00 * (1.0f - fx) + r10 * fx;
+                const float r1 = r01 * (1.0f - fx) + r11 * fx;
+                const float r  = r0 * (1.0f - fy) + r1 * fy;
+
+                const float dx = (float)x - foe.u, dy = (float)y - foe.v;
+                const float rho = std::sqrt(dx * dx + dy * dy);
+                if (rho < 1e-3f) continue;
+                const float qx = (float)x + dx / rho * r;
+                const float qy = (float)y + dy / rho * r;
+                if (qx < (float)pr || qy < (float)pr
+                    || qx + (float)pr >= (float)(w - 1)
+                    || qy + (float)pr >= (float)(h - 1))
+                    continue;
+
+                const nf_u32 didx = y * w + x;
+                out_cur[didx * 2 + 0] = qx;
+                out_cur[didx * 2 + 1] = qy;
+                const float c0 = out_conf[i00] * (1.0f - fx) + out_conf[i10] * fx;
+                const float c1 = out_conf[i01] * (1.0f - fx) + out_conf[i11] * fx;
+                out_conf[didx] = c0 * (1.0f - fy) + c1 * fy;
+                out_valid[didx] = 1;
+            }
+        }
+    }
+    return NF_OK;
+}

@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 740" width="1080" height="740">
+<rect width="1080" height="740" fill="#ffffff"/>
+<style>text{font-family:"PingFang SC","Hiragino Sans GB","Heiti SC",sans-serif;}.mono{font-family:"SF Mono","Menlo",monospace;}</style>
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#456"/></marker>
+<marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1e5a96"/></marker>
+<marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2e7d32"/></marker>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#c0392b"/></marker>
+</defs>
+<text x="30.0" y="34.0" font-size="25" fill="#1b2b3a" text-anchor="start" font-weight="600">代码调用关系：从 CLI 到体素输出</text>
+<text x="30.0" y="59.0" font-size="15" fill="#5d6d7e" text-anchor="start">实线=主链调用；虚线=离线诊断。C 接口 + 函数表，唯一的 C++ 继承是 InputSource</text>
+<rect x="24.0" y="92.0" width="190.0" height="64.0" rx="7" fill="#f4f6f8" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="119.0" y="119.5" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">nfocc_run</text>
+<text x="119.0" y="138.7" font-size="12" fill="#5d6d7e" text-anchor="middle">参数解析 / 主循环</text>
+<rect x="24.0" y="176.0" width="190.0" height="64.0" rx="7" fill="#f4f6f8" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="119.0" y="203.5" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">nfocc_viz</text>
+<text x="119.0" y="222.7" font-size="12" fill="#5d6d7e" text-anchor="middle">离线诊断</text>
+<rect x="262.0" y="92.0" width="180.0" height="64.0" rx="7" fill="#edf3fa" stroke="#1e5a96" stroke-width="1.4"/>
+<text x="352.0" y="119.5" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">InputSource</text>
+<text x="352.0" y="138.7" font-size="12" fill="#5d6d7e" text-anchor="middle">虚基类 · ReadFrame</text>
+<text x="262.0" y="174.0" font-size="11.8" fill="#5d6d7e" text-anchor="start">Synthetic / File / ZMQ / hanqtech</text>
+<text x="262.0" y="190.0" font-size="10.8" fill="#8794a3" text-anchor="start">NFFrameInput: img[4] / img_ref[4]</text>
+<text x="262.0" y="206.0" font-size="10.8" fill="#8794a3" text-anchor="start">t_cam[4]（视口系）</text>
+<text x="228.0" y="84.0" font-size="11.5" fill="#1e5a96" text-anchor="middle">build</text>
+<line x1="214.0" y1="124.0" x2="260.0" y2="124.0" stroke="#1e5a96" stroke-width="1.8" marker-end="url(#arb)"/>
+<rect x="470.0" y="80.0" width="340.0" height="512.0" rx="10" fill="#f7fafd" stroke="#1e5a96" stroke-width="1.4"/>
+<text x="640.0" y="104.0" font-size="17" fill="#1e5a96" text-anchor="middle" font-weight="600">NFPipeline</text>
+<text x="640.0" y="123.0" font-size="12" fill="#5d6d7e" text-anchor="middle">nf_pipeline_process()</text>
+<rect x="485.0" y="140.0" width="310.0" height="50.0" rx="6" fill="#ffffff" stroke="#c9d6e3" stroke-width="1.1"/>
+<text x="495.0" y="161.0" font-size="13.5" fill="#1b2b3a" text-anchor="start" font-weight="600">① nf_view_warp ×4</text>
+<text x="495.0" y="179.0" font-size="11.5" fill="#5d6d7e" text-anchor="start">LUT 重采样 / 掩码</text>
+<rect x="485.0" y="202.0" width="310.0" height="50.0" rx="6" fill="#ffffff" stroke="#c9d6e3" stroke-width="1.1"/>
+<text x="495.0" y="223.0" font-size="13.5" fill="#1b2b3a" text-anchor="start" font-weight="600">② nf_baseline_manager_decide</text>
+<text x="495.0" y="241.0" font-size="11.5" fill="#5d6d7e" text-anchor="start">或 nf_gate_decide</text>
+<rect x="485.0" y="264.0" width="310.0" height="50.0" rx="6" fill="#ffffff" stroke="#c9d6e3" stroke-width="1.1"/>
+<text x="495.0" y="285.0" font-size="13.5" fill="#1b2b3a" text-anchor="start" font-weight="600">③ nf_match_radial | SGBM</text>
+<text x="495.0" y="303.0" font-size="11.5" fill="#5d6d7e" text-anchor="start">前向 / 侧向两分支</text>
+<rect x="485.0" y="326.0" width="310.0" height="50.0" rx="6" fill="#ffffff" stroke="#c9d6e3" stroke-width="1.1"/>
+<text x="495.0" y="347.0" font-size="13.5" fill="#1b2b3a" text-anchor="start" font-weight="600">④ nf_forward_range | 三角化</text>
+<text x="495.0" y="365.0" font-size="11.5" fill="#5d6d7e" text-anchor="start">像素 → 3D 点</text>
+<rect x="485.0" y="388.0" width="310.0" height="50.0" rx="6" fill="#ffffff" stroke="#c9d6e3" stroke-width="1.1"/>
+<text x="495.0" y="409.0" font-size="13.5" fill="#1b2b3a" text-anchor="start" font-weight="600">⑤ FoE · σ 传播 · σ 截断 · D4</text>
+<text x="495.0" y="427.0" font-size="11.5" fill="#5d6d7e" text-anchor="start">逐点防御</text>
+<rect x="485.0" y="450.0" width="310.0" height="50.0" rx="6" fill="#ffffff" stroke="#c9d6e3" stroke-width="1.1"/>
+<text x="495.0" y="471.0" font-size="13.5" fill="#1b2b3a" text-anchor="start" font-weight="600">⑥ nf_voxel_insert → export</text>
+<text x="495.0" y="489.0" font-size="11.5" fill="#5d6d7e" text-anchor="start">Hash + CMA 融合</text>
+<rect x="485.0" y="512.0" width="310.0" height="50.0" rx="6" fill="#ffffff" stroke="#c9d6e3" stroke-width="1.1"/>
+<text x="495.0" y="533.0" font-size="13.5" fill="#1b2b3a" text-anchor="start" font-weight="600">⑦ nf_voxel_filter_compress</text>
+<text x="495.0" y="551.0" font-size="11.5" fill="#5d6d7e" text-anchor="start">五阶段精简（可选）</text>
+<line x1="442.0" y1="124.0" x2="468.0" y2="124.0" stroke="#1e5a96" stroke-width="1.8" marker-end="url(#arb)"/>
+<rect x="830.0" y="140.0" width="220.0" height="50.0" rx="7" fill="#fdf4e5" stroke="#c99a55" stroke-width="1.4"/>
+<text x="940.0" y="161.1" font-size="13" fill="#1b2b3a" text-anchor="middle" font-weight="600">nf_lut_build</text>
+<text x="940.0" y="177.7" font-size="10.8" fill="#5d6d7e" text-anchor="middle">nf_vcam_project</text>
+<line x1="796.0" y1="165.0" x2="828.0" y2="165.0" stroke="#9aa8b6" stroke-width="1.8" marker-end="url(#ar)"/>
+<rect x="830.0" y="202.0" width="220.0" height="50.0" rx="7" fill="#fdf4e5" stroke="#c99a55" stroke-width="1.4"/>
+<text x="940.0" y="223.1" font-size="13" fill="#1b2b3a" text-anchor="middle" font-weight="600">NFBaselineManager</text>
+<text x="940.0" y="239.7" font-size="10.8" fill="#5d6d7e" text-anchor="middle">hist[16] · 双基线</text>
+<line x1="796.0" y1="227.0" x2="828.0" y2="227.0" stroke="#9aa8b6" stroke-width="1.8" marker-end="url(#ar)"/>
+<rect x="830.0" y="264.0" width="220.0" height="50.0" rx="7" fill="#fdf4e5" stroke="#c99a55" stroke-width="1.4"/>
+<text x="940.0" y="285.1" font-size="13" fill="#1b2b3a" text-anchor="middle" font-weight="600">NFEngineOps</text>
+<text x="940.0" y="301.7" font-size="10.8" fill="#5d6d7e" text-anchor="middle">SGBM / MODEL 函数表</text>
+<line x1="796.0" y1="289.0" x2="828.0" y2="289.0" stroke="#9aa8b6" stroke-width="1.8" marker-end="url(#ar)"/>
+<rect x="830.0" y="326.0" width="220.0" height="50.0" rx="7" fill="#fdf4e5" stroke="#c99a55" stroke-width="1.4"/>
+<text x="940.0" y="347.1" font-size="13" fill="#1b2b3a" text-anchor="middle" font-weight="600">nfocc_geometry</text>
+<text x="940.0" y="363.7" font-size="10.8" fill="#5d6d7e" text-anchor="middle">纯函数 · 无状态</text>
+<line x1="796.0" y1="351.0" x2="828.0" y2="351.0" stroke="#9aa8b6" stroke-width="1.8" marker-end="url(#ar)"/>
+<rect x="830.0" y="388.0" width="220.0" height="50.0" rx="7" fill="#fdf4e5" stroke="#c99a55" stroke-width="1.4"/>
+<text x="940.0" y="409.1" font-size="13" fill="#1b2b3a" text-anchor="middle" font-weight="600">NFVoxelCtx</text>
+<text x="940.0" y="425.7" font-size="10.8" fill="#5d6d7e" text-anchor="middle">开放寻址 · 质心 CMA</text>
+<line x1="796.0" y1="413.0" x2="828.0" y2="413.0" stroke="#9aa8b6" stroke-width="1.8" marker-end="url(#ar)"/>
+<rect x="830.0" y="450.0" width="220.0" height="50.0" rx="7" fill="#fdf4e5" stroke="#c99a55" stroke-width="1.4"/>
+<text x="940.0" y="471.1" font-size="13" fill="#1b2b3a" text-anchor="middle" font-weight="600">NFVoxelFilterCtx</text>
+<text x="940.0" y="487.7" font-size="10.8" fill="#5d6d7e" text-anchor="middle">位图 / 扇区 / 配额</text>
+<line x1="796.0" y1="475.0" x2="828.0" y2="475.0" stroke="#9aa8b6" stroke-width="1.8" marker-end="url(#ar)"/>
+<line x1="640.0" y1="592.0" x2="640.0" y2="610.0" stroke="#2e7d32" stroke-width="1.8" marker-end="url(#arg)"/>
+<rect x="470.0" y="612.0" width="340.0" height="52.0" rx="7" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.4"/>
+<text x="640.0" y="633.8" font-size="14" fill="#1b2b3a" text-anchor="middle" font-weight="600">NFFrameOutput</text>
+<text x="640.0" y="651.7" font-size="11" fill="#5d6d7e" text-anchor="middle">cloud · dvf_points · zmap/zindex · 冻结码</text>
+<rect x="24.0" y="470.0" width="400.0" height="124.0" rx="8" fill="#f3eef8" stroke="#6a4c93" stroke-width="1.2"/>
+<text x="40.0" y="494.0" font-size="13.5" fill="#6a4c93" text-anchor="start" font-weight="600">离线诊断链（nfocc_viz）</text>
+<text x="40.0" y="516.0" font-size="12" fill="#4a3a66" text-anchor="start">nf_octree_build → nf_dbscan → nf_point_velocity</text>
+<text x="40.0" y="536.0" font-size="12" fill="#4a3a66" text-anchor="start">→ nf_cluster_vote_motion → 簇级动静</text>
+<text x="40.0" y="560.0" font-size="11.5" fill="#5d6d7e" text-anchor="start">网格哈希索引 120 mm；150k 点 54 ms（均匀）</text>
+<line x1="214.0" y1="240.0" x2="214.0" y2="466.0" stroke="#6a4c93" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#ar)"/>
+<text x="24.0" y="704.0" font-size="12.5" fill="#8794a3" text-anchor="start">调用点以 pipeline.cpp 为准；引擎经 nf_pipeline_bind_engine() 注入，核心库不链接 OpenCV。</text>
+<text x="24.0" y="724.0" font-size="12.5" fill="#8794a3" text-anchor="start">num_points_per_cam 统计的是插入调用次数，越界点也返回 OK 并计数 —— 与最终体素数不等。</text>
+</svg>

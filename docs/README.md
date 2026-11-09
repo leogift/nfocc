@@ -38,6 +38,7 @@
 |---|---|---|
 | A0 | `NEW_MOD.md` | **产品化演进**：双基线/不确定度/D4/zMap 压缩 + 已知限制（必读 §0） |
 | A0b | `TODO.md` | **待办**：当前阻塞项与外部依赖 |
+| A0c | `IMPROVEMENT-PLAN.md` | **改进方案**：P0–P4 优先级、0_SKILL 六模块映射、本轮已落地修复 |
 | A1 | `ROADMAP.md` | **研发计划**：按当前代码重盘的缺口与 6 阶段迭代 |
 | A2 | `SPEC-DEPTH-ACCEPTANCE.md` | **验收标准**：150mm 的分距离段适用范围 |
 | A3 | `DECISION-DEPTH-ACCURACY.md` | **精度决策**：150°/1024, 5-15km/h 的参数取舍与实测 |
@@ -49,8 +50,10 @@
 |---|---|
 | `report/NFOCC-项目总览.pdf` | 9 页：项目定位 / 业务逻辑 / 架构 / 数据流 / 算法 / 亮点 / 局限 / 进展 / 待办 / 选型权衡 |
 | `report/REPORT-FULL.md` | 上者正文源 |
+| `report/NFOCC-项目报告-2026-11.pdf` | 31 页：业务/架构/数据流/算法/性能/局限/进展，含 15 张矢量图 + 5 张实测图 |
 
 生成流程：改 `report/REPORT-FULL.md` → 重跑 `tools/build_report_full.py`（程序化 SVG + pandoc + Chromium 打印）。
+新报告：`docs/report/v2/report.md` + `tools/report_v2/build_report.py`（同上，另含 PyMuPDF 页脚/页码）。
 7 张图全部内联 SVG，保持矢量；不依赖任何图片预处理脚本。
 
 ### 第二层：已落地的实现记录

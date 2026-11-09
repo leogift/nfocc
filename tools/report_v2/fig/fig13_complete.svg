@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 590" width="1080" height="590">
+<rect width="1080" height="590" fill="#ffffff"/>
+<style>text{font-family:"PingFang SC","Hiragino Sans GB","Heiti SC",sans-serif;}.mono{font-family:"SF Mono","Menlo",monospace;}</style>
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#456"/></marker>
+<marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1e5a96"/></marker>
+<marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2e7d32"/></marker>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#c0392b"/></marker>
+</defs>
+<text x="30.0" y="34.0" font-size="25" fill="#1b2b3a" text-anchor="start" font-weight="600">功能完成度（工程自评）</text>
+<text x="30.0" y="59.0" font-size="15" fill="#5d6d7e" text-anchor="start">口径：代码 + 单测 100%；主链接入 80%；真实数据验证 60%；精度验收 30%；非目标项 0%</text>
+<text x="24.0" y="112.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">相机与几何</text>
+<rect x="150.0" y="96.0" width="440.0" height="20.0" rx="3" fill="#eef1f4"/>
+<rect x="150.0" y="96.0" width="440.0" height="20.0" rx="3" fill="#2e7d32"/>
+<text x="620.0" y="111.0" font-size="12.5" fill="#2e7d32" text-anchor="end" font-weight="600">100%</text>
+<text x="642.0" y="111.0" font-size="11" fill="#5d6d7e" text-anchor="start">KB / 径向多项式；vcam 交叉校验</text>
+<text x="24.0" y="146.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">视口与 LUT</text>
+<rect x="150.0" y="130.0" width="440.0" height="20.0" rx="3" fill="#eef1f4"/>
+<rect x="150.0" y="130.0" width="396.0" height="20.0" rx="3" fill="#2e7d32"/>
+<text x="620.0" y="145.0" font-size="12.5" fill="#2e7d32" text-anchor="end" font-weight="600">90%</text>
+<text x="642.0" y="145.0" font-size="11" fill="#5d6d7e" text-anchor="start">4 路 150°；6 视口规划未全接</text>
+<text x="24.0" y="180.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">视差引擎</text>
+<rect x="150.0" y="164.0" width="440.0" height="20.0" rx="3" fill="#eef1f4"/>
+<rect x="150.0" y="164.0" width="418.0" height="20.0" rx="3" fill="#2e7d32"/>
+<text x="620.0" y="179.0" font-size="12.5" fill="#2e7d32" text-anchor="end" font-weight="600">95%</text>
+<text x="642.0" y="179.0" font-size="11" fill="#5d6d7e" text-anchor="start">SGBM + 模型接口；模型未实现</text>
+<text x="24.0" y="214.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">三角化 / 前向</text>
+<rect x="150.0" y="198.0" width="440.0" height="20.0" rx="3" fill="#eef1f4"/>
+<rect x="150.0" y="198.0" width="418.0" height="20.0" rx="3" fill="#2e7d32"/>
+<text x="620.0" y="213.0" font-size="12.5" fill="#2e7d32" text-anchor="end" font-weight="600">95%</text>
+<text x="642.0" y="213.0" font-size="11" fill="#5d6d7e" text-anchor="start">两条路径均通；前向性能未优化</text>
+<text x="24.0" y="248.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">体素与融合</text>
+<rect x="150.0" y="232.0" width="440.0" height="20.0" rx="3" fill="#eef1f4"/>
+<rect x="150.0" y="232.0" width="440.0" height="20.0" rx="3" fill="#2e7d32"/>
+<text x="620.0" y="247.0" font-size="12.5" fill="#2e7d32" text-anchor="end" font-weight="600">100%</text>
+<text x="642.0" y="247.0" font-size="11" fill="#5d6d7e" text-anchor="start">Hash + CMA + zMap 全通</text>
+<text x="24.0" y="282.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">防御体系</text>
+<rect x="150.0" y="266.0" width="440.0" height="20.0" rx="3" fill="#eef1f4"/>
+<rect x="150.0" y="266.0" width="352.0" height="20.0" rx="3" fill="#b26a00"/>
+<text x="620.0" y="281.0" font-size="12.5" fill="#b26a00" text-anchor="end" font-weight="600">80%</text>
+<text x="642.0" y="281.0" font-size="11" fill="#5d6d7e" text-anchor="start">D1/D3/D4/σ；D2 未接</text>
+<text x="24.0" y="316.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">基线状态机</text>
+<rect x="150.0" y="300.0" width="440.0" height="20.0" rx="3" fill="#eef1f4"/>
+<rect x="150.0" y="300.0" width="396.0" height="20.0" rx="3" fill="#2e7d32"/>
+<text x="620.0" y="315.0" font-size="12.5" fill="#2e7d32" text-anchor="end" font-weight="600">90%</text>
+<text x="642.0" y="315.0" font-size="11" fill="#5d6d7e" text-anchor="start">双基线 + 里程计；真实数据默认未开</text>
+<text x="24.0" y="350.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">聚类与动静</text>
+<rect x="150.0" y="334.0" width="440.0" height="20.0" rx="3" fill="#eef1f4"/>
+<rect x="150.0" y="334.0" width="374.0" height="20.0" rx="3" fill="#b26a00"/>
+<text x="620.0" y="349.0" font-size="12.5" fill="#b26a00" text-anchor="end" font-weight="600">85%</text>
+<text x="642.0" y="349.0" font-size="11" fill="#5d6d7e" text-anchor="start">算法通过；真实点云太稀</text>
+<text x="24.0" y="384.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">IO / ZMQ</text>
+<rect x="150.0" y="368.0" width="440.0" height="20.0" rx="3" fill="#eef1f4"/>
+<rect x="150.0" y="368.0" width="440.0" height="20.0" rx="3" fill="#2e7d32"/>
+<text x="620.0" y="383.0" font-size="12.5" fill="#2e7d32" text-anchor="end" font-weight="600">100%</text>
+<text x="642.0" y="383.0" font-size="11" fill="#5d6d7e" text-anchor="start">零拷贝收发 + 协议校验</text>
+<text x="24.0" y="418.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">测试</text>
+<rect x="150.0" y="402.0" width="440.0" height="20.0" rx="3" fill="#eef1f4"/>
+<rect x="150.0" y="402.0" width="396.0" height="20.0" rx="3" fill="#2e7d32"/>
+<text x="620.0" y="417.0" font-size="12.5" fill="#2e7d32" text-anchor="end" font-weight="600">90%</text>
+<text x="642.0" y="417.0" font-size="11" fill="#5d6d7e" text-anchor="start">20/21；精度用例失败</text>
+<text x="24.0" y="452.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">精度验收</text>
+<rect x="150.0" y="436.0" width="440.0" height="20.0" rx="3" fill="#eef1f4"/>
+<rect x="150.0" y="436.0" width="132.0" height="20.0" rx="3" fill="#c0392b"/>
+<text x="620.0" y="451.0" font-size="12.5" fill="#c0392b" text-anchor="end" font-weight="600">30%</text>
+<text x="642.0" y="451.0" font-size="11" fill="#5d6d7e" text-anchor="start">4 段全未达；场景纹理缺陷</text>
+<text x="24.0" y="486.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">真机部署</text>
+<rect x="150.0" y="470.0" width="440.0" height="20.0" rx="3" fill="#eef1f4"/>
+<rect x="150.0" y="470.0" width="88.0" height="20.0" rx="3" fill="#c0392b"/>
+<text x="620.0" y="485.0" font-size="12.5" fill="#c0392b" text-anchor="end" font-weight="600">20%</text>
+<text x="642.0" y="485.0" font-size="11" fill="#5d6d7e" text-anchor="start">aarch64 产物未上板</text>
+<text x="24.0" y="520.0" font-size="13" fill="#1b2b3a" text-anchor="start" font-weight="600">在线自校准</text>
+<rect x="150.0" y="504.0" width="440.0" height="20.0" rx="3" fill="#eef1f4"/>
+<text x="620.0" y="519.0" font-size="12.5" fill="#c0392b" text-anchor="end" font-weight="600">0%</text>
+<text x="642.0" y="519.0" font-size="11" fill="#5d6d7e" text-anchor="start">方案已定，未实现</text>
+<rect x="24.0" y="542.0" width="1032.0" height="30.0" rx="6" fill="#edf3fa" stroke="#1e5a96" stroke-width="1"/>
+<text x="40.0" y="562.0" font-size="12" fill="#33475b" text-anchor="start" font-weight="600">整体：链路已打通，精度未证实。完成度不是加权总分 —— 精度验收决定能否交付。</text>
+</svg>

@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 560" width="1080" height="560">
+<rect width="1080" height="560" fill="#ffffff"/>
+<style>text{font-family:"PingFang SC","Hiragino Sans GB","Heiti SC",sans-serif;}.mono{font-family:"SF Mono","Menlo",monospace;}</style>
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#456"/></marker>
+<marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1e5a96"/></marker>
+<marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2e7d32"/></marker>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#c0392b"/></marker>
+</defs>
+<text x="30.0" y="34.0" font-size="25" fill="#1b2b3a" text-anchor="start" font-weight="600">工况判定：默认单帧门控，可选双基线状态机</text>
+<text x="30.0" y="59.0" font-size="15" fill="#5d6d7e" text-anchor="start">b = |t_cam|（帧间位移）；σ = |t_xy|/|t|（平移偏离光轴的程度）</text>
+<text x="24.0" y="100.0" font-size="15" fill="#1b2b3a" text-anchor="start" font-weight="600">A. 默认：nf_gate_decide（无状态）</text>
+<rect x="24.0" y="118.0" width="490.0" height="42.0" rx="5" fill="#ffffff" stroke="#dfe5ec" stroke-width="1"/>
+<text x="36.0" y="144.0" font-size="13.5" fill="#1b2b3a" text-anchor="start">frame_gap &gt; gap_max</text>
+<line x1="300.0" y1="139.0" x2="330.0" y2="139.0" stroke="#c0392b" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="340.0" y="144.0" font-size="13.5" fill="#c0392b" text-anchor="start" font-weight="600">FROZEN_GAP</text>
+<rect x="24.0" y="170.0" width="490.0" height="42.0" rx="5" fill="#ffffff" stroke="#dfe5ec" stroke-width="1"/>
+<text x="36.0" y="196.0" font-size="13.5" fill="#1b2b3a" text-anchor="start">b &lt; b_min（278 mm）</text>
+<line x1="300.0" y1="191.0" x2="330.0" y2="191.0" stroke="#c0392b" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="340.0" y="196.0" font-size="13.5" fill="#c0392b" text-anchor="start" font-weight="600">FROZEN_NEAR</text>
+<rect x="24.0" y="222.0" width="490.0" height="42.0" rx="5" fill="#ffffff" stroke="#dfe5ec" stroke-width="1"/>
+<text x="36.0" y="248.0" font-size="13.5" fill="#1b2b3a" text-anchor="start">b &gt; b_max（833 mm）</text>
+<line x1="300.0" y1="243.0" x2="330.0" y2="243.0" stroke="#c0392b" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="340.0" y="248.0" font-size="13.5" fill="#c0392b" text-anchor="start" font-weight="600">FROZEN_FAR</text>
+<rect x="24.0" y="274.0" width="490.0" height="42.0" rx="5" fill="#ffffff" stroke="#dfe5ec" stroke-width="1"/>
+<text x="36.0" y="300.0" font-size="13.5" fill="#1b2b3a" text-anchor="start">σ ≥ 0.80</text>
+<line x1="300.0" y1="295.0" x2="330.0" y2="295.0" stroke="#1e5a96" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="340.0" y="300.0" font-size="13.5" fill="#1e5a96" text-anchor="start" font-weight="600">STEREO（SGBM）</text>
+<rect x="24.0" y="326.0" width="490.0" height="42.0" rx="5" fill="#ffffff" stroke="#dfe5ec" stroke-width="1"/>
+<text x="36.0" y="352.0" font-size="13.5" fill="#1b2b3a" text-anchor="start">σ ≤ 0.35</text>
+<line x1="300.0" y1="347.0" x2="330.0" y2="347.0" stroke="#2e7d32" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="340.0" y="352.0" font-size="13.5" fill="#2e7d32" text-anchor="start" font-weight="600">FORWARD（径向）</text>
+<rect x="24.0" y="378.0" width="490.0" height="42.0" rx="5" fill="#ffffff" stroke="#dfe5ec" stroke-width="1"/>
+<text x="36.0" y="404.0" font-size="13.5" fill="#1b2b3a" text-anchor="start">0.35 &lt; σ &lt; 0.80</text>
+<line x1="300.0" y1="399.0" x2="330.0" y2="399.0" stroke="#b26a00" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="340.0" y="404.0" font-size="13.5" fill="#b26a00" text-anchor="start" font-weight="600">HYBRID（实走 STEREO）</text>
+<text x="24.0" y="452.0" font-size="11.5" fill="#5d6d7e" text-anchor="start">顺序即代码顺序：丢帧 → 基线不足 → 超限 → 方向分流。</text>
+<text x="560.0" y="100.0" font-size="15" fill="#1b2b3a" text-anchor="start" font-weight="600">B. --baseline-mgr：双基线状态机</text>
+<rect x="560.0" y="120.0" width="150.0" height="64.0" rx="7" fill="#fbeceb" stroke="#c0392b" stroke-width="1.4"/>
+<text x="635.0" y="148.1" font-size="13" fill="#1b2b3a" text-anchor="middle" font-weight="600">FROZEN_NEAR</text>
+<text x="635.0" y="164.7" font-size="10.5" fill="#5d6d7e" text-anchor="middle">历史不足或 b&lt;278</text>
+<rect x="760.0" y="120.0" width="150.0" height="64.0" rx="7" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.4"/>
+<text x="835.0" y="147.8" font-size="14" fill="#1b2b3a" text-anchor="middle" font-weight="600">STEREO 短</text>
+<text x="835.0" y="165.7" font-size="10.5" fill="#5d6d7e" text-anchor="middle">b ≥ 278 mm</text>
+<rect x="760.0" y="230.0" width="150.0" height="64.0" rx="7" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.4"/>
+<text x="835.0" y="257.8" font-size="14" fill="#1b2b3a" text-anchor="middle" font-weight="600">STEREO 长</text>
+<text x="835.0" y="275.7" font-size="10.5" fill="#5d6d7e" text-anchor="middle">b ≥ 500 mm</text>
+<rect x="560.0" y="230.0" width="150.0" height="64.0" rx="7" fill="#fbeceb" stroke="#c0392b" stroke-width="1.4"/>
+<text x="635.0" y="258.1" font-size="13" fill="#1b2b3a" text-anchor="middle" font-weight="600">重置队列</text>
+<text x="635.0" y="274.7" font-size="10.5" fill="#5d6d7e" text-anchor="middle">yaw&gt;15° / b&gt;833</text>
+<line x1="712.0" y1="152.0" x2="758.0" y2="152.0" stroke="#2e7d32" stroke-width="1.8" marker-end="url(#arg)"/>
+<line x1="835.0" y1="186.0" x2="835.0" y2="228.0" stroke="#2e7d32" stroke-width="1.8" marker-end="url(#arg)"/>
+<text x="862.0" y="212.0" font-size="12.5" fill="#2e7d32" text-anchor="middle">晋升</text>
+<path d="M758 262 C700 262 660 262 662 296" fill="none" stroke="#c0392b" stroke-width="1.6" marker-end="url(#arr)" stroke-linejoin="round"/>
+<line x1="636.0" y1="232.0" x2="636.0" y2="186.0" stroke="#c0392b" stroke-width="1.8" marker-end="url(#arr)"/>
+<text x="600.0" y="210.0" font-size="12.5" fill="#c0392b" text-anchor="middle">reset</text>
+<text x="560.0" y="330.0" font-size="11.5" fill="#5d6d7e" text-anchor="start">短基线 b=278 → 长基线 b=556（单测连续 8 次长基线输出）</text>
+<text x="560.0" y="352.0" font-size="11.5" fill="#5d6d7e" text-anchor="start">历史队列容量 16 帧；只在 cam0 推进，四路共享决策。</text>
+<rect x="560.0" y="378.0" width="490.0" height="112.0" rx="7" fill="#fdf4e5" stroke="#c99a55" stroke-width="1.1"/>
+<text x="576.0" y="402.0" font-size="13.5" fill="#b26a00" text-anchor="start" font-weight="600">关键差异</text>
+<text x="576.0" y="424.0" font-size="11.5" fill="#6b4a10" text-anchor="start">状态机只按 |t| 判，不判方向；直行数据 b≥500 时被判 STEREO，</text>
+<text x="576.0" y="444.0" font-size="11.5" fill="#6b4a10" text-anchor="start">SGBM 在纯前向平移下结构性失效 —— 实测 46,821 次插入、最终 0 点。</text>
+<text x="576.0" y="464.0" font-size="11.5" fill="#6b4a10" text-anchor="start">默认门控会判 FORWARD，同一数据产出 2,077 点。</text>
+<text x="24.0" y="520.0" font-size="12.5" fill="#8794a3" text-anchor="start">b_min=278 / b_max=833 / b_target=500 mm 对应 5 / 15 / 9 km/h @5 Hz；阈值改动需同步 PARAM 反推。</text>
+</svg>

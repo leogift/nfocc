@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 590" width="1080" height="590">
+<rect width="1080" height="590" fill="#ffffff"/>
+<style>text{font-family:"PingFang SC","Hiragino Sans GB","Heiti SC",sans-serif;}.mono{font-family:"SF Mono","Menlo",monospace;}</style>
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#456"/></marker>
+<marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1e5a96"/></marker>
+<marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2e7d32"/></marker>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#c0392b"/></marker>
+</defs>
+<text x="30.0" y="34.0" font-size="25" fill="#1b2b3a" text-anchor="start" font-weight="600">单帧数据流：4 路鱼眼 → 点云 / 高程柱</text>
+<text x="30.0" y="59.0" font-size="15" fill="#5d6d7e" text-anchor="start">状态码贯穿每一级；冻结时输出 num_points=0 + NF_E_BASELINE_*，不是空点云</text>
+<rect x="24.0" y="92.0" width="222.0" height="62.0" rx="7" fill="#f4f6f8" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="135.0" y="118.5" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">① 输入</text>
+<text x="135.0" y="137.7" font-size="11.5" fill="#5d6d7e" text-anchor="middle">4×Y 1280×966 + prev + ego</text>
+<rect x="24.0" y="180.0" width="222.0" height="62.0" rx="7" fill="#edf3fa" stroke="#1e5a96" stroke-width="1.4"/>
+<text x="135.0" y="206.5" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">② 视口重采样</text>
+<text x="135.0" y="225.7" font-size="11.5" fill="#5d6d7e" text-anchor="middle">4×1024×475，f=137.19</text>
+<rect x="24.0" y="268.0" width="222.0" height="76.0" rx="7" fill="#edf3fa" stroke="#1e5a96" stroke-width="1.4"/>
+<text x="135.0" y="291.9" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">③ 工况决策</text>
+<text x="135.0" y="311.1" font-size="11.5" fill="#5d6d7e" text-anchor="middle">nf_gate_decide（默认）</text>
+<text x="135.0" y="330.3" font-size="10.9" fill="#8794a3" text-anchor="middle">或双基线状态机</text>
+<line x1="135.0" y1="154.0" x2="135.0" y2="178.0" stroke="#1e5a96" stroke-width="1.8" marker-end="url(#arb)"/>
+<line x1="135.0" y1="242.0" x2="135.0" y2="266.0" stroke="#1e5a96" stroke-width="1.8" marker-end="url(#arb)"/>
+<text x="30.0" y="366.0" font-size="10.8" fill="#8794a3" text-anchor="start">缓冲：view_img[2] / view_val[2] / dmap</text>
+<text x="300.0" y="112.0" font-size="13" fill="#2e7d32" text-anchor="start" font-weight="600">FORWARD  σ≤0.35</text>
+<rect x="300.0" y="126.0" width="210.0" height="60.0" rx="7" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.4"/>
+<text x="405.0" y="151.8" font-size="14" fill="#1b2b3a" text-anchor="middle" font-weight="600">④a 径向匹配</text>
+<text x="405.0" y="169.7" font-size="11" fill="#5d6d7e" text-anchor="middle">nf_match_radial</text>
+<rect x="540.0" y="126.0" width="210.0" height="60.0" rx="7" fill="#eaf5ec" stroke="#2e7d32" stroke-width="1.4"/>
+<text x="645.0" y="151.8" font-size="14" fill="#1b2b3a" text-anchor="middle" font-weight="600">⑤a 解析测距</text>
+<text x="645.0" y="169.7" font-size="11" fill="#5d6d7e" text-anchor="middle">nf_forward_range</text>
+<line x1="510.0" y1="156.0" x2="538.0" y2="156.0" stroke="#2e7d32" stroke-width="1.8" marker-end="url(#arg)"/>
+<text x="300.0" y="232.0" font-size="13" fill="#1e5a96" text-anchor="start" font-weight="600">STEREO  σ≥0.80</text>
+<rect x="300.0" y="246.0" width="210.0" height="60.0" rx="7" fill="#edf3fa" stroke="#1e5a96" stroke-width="1.4"/>
+<text x="405.0" y="271.8" font-size="14" fill="#1b2b3a" text-anchor="middle" font-weight="600">④b SGBM</text>
+<text x="405.0" y="289.7" font-size="11" fill="#5d6d7e" text-anchor="middle">NFEngineOps.run</text>
+<rect x="540.0" y="246.0" width="210.0" height="60.0" rx="7" fill="#edf3fa" stroke="#1e5a96" stroke-width="1.4"/>
+<text x="645.0" y="271.8" font-size="14" fill="#1b2b3a" text-anchor="middle" font-weight="600">⑤b 三角化</text>
+<text x="645.0" y="289.7" font-size="11" fill="#5d6d7e" text-anchor="middle">nf_triangulate_rays</text>
+<line x1="510.0" y1="276.0" x2="538.0" y2="276.0" stroke="#1e5a96" stroke-width="1.8" marker-end="url(#arb)"/>
+<path d="M246 306 C270 306 270 156 298 156" fill="none" stroke="#2e7d32" stroke-width="1.7" marker-end="url(#arg)" stroke-linejoin="round"/>
+<path d="M246 306 C270 306 270 276 298 276" fill="none" stroke="#1e5a96" stroke-width="1.7" marker-end="url(#arb)" stroke-linejoin="round"/>
+<rect x="790.0" y="120.0" width="260.0" height="112.0" rx="7" fill="#fdf4e5" stroke="#c99a55" stroke-width="1.4"/>
+<text x="920.0" y="161.9" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">⑥ 逐点防御</text>
+<text x="920.0" y="181.1" font-size="11.3" fill="#5d6d7e" text-anchor="middle">D3 FoE · σ 传播 · σ 截断 · D4</text>
+<text x="920.0" y="200.3" font-size="10.700000000000001" fill="#8794a3" text-anchor="middle">不通过则丢弃</text>
+<rect x="790.0" y="252.0" width="260.0" height="76.0" rx="7" fill="#fdf4e5" stroke="#c99a55" stroke-width="1.4"/>
+<text x="920.0" y="285.5" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">⑦ 体素融合</text>
+<text x="920.0" y="304.7" font-size="11.3" fill="#5d6d7e" text-anchor="middle">Hash + CMA · 质心 / σ 取最小</text>
+<rect x="790.0" y="348.0" width="260.0" height="76.0" rx="7" fill="#f3eef8" stroke="#6a4c93" stroke-width="1.4"/>
+<text x="920.0" y="381.5" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">⑧ 导出 / 精简</text>
+<text x="920.0" y="400.7" font-size="11.3" fill="#5d6d7e" text-anchor="middle">点云 → DVF 五阶段（可选）</text>
+<rect x="790.0" y="444.0" width="260.0" height="66.0" rx="7" fill="#f4f6f8" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="920.0" y="472.5" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">⑨ 输出</text>
+<text x="920.0" y="491.7" font-size="11" fill="#5d6d7e" text-anchor="middle">cloud · dvf · zMap/zIndex · ZMQ</text>
+<line x1="752.0" y1="176.0" x2="788.0" y2="176.0" stroke="#9aa8b6" stroke-width="1.8" marker-end="url(#ar)"/>
+<line x1="752.0" y1="276.0" x2="788.0" y2="290.0" stroke="#9aa8b6" stroke-width="1.8" marker-end="url(#ar)"/>
+<line x1="920.0" y1="232.0" x2="920.0" y2="250.0" stroke="#9aa8b6" stroke-width="1.8" marker-end="url(#ar)"/>
+<line x1="920.0" y1="328.0" x2="920.0" y2="346.0" stroke="#9aa8b6" stroke-width="1.8" marker-end="url(#ar)"/>
+<line x1="920.0" y1="424.0" x2="920.0" y2="442.0" stroke="#9aa8b6" stroke-width="1.8" marker-end="url(#ar)"/>
+<rect x="300.0" y="390.0" width="450.0" height="70.0" rx="7" fill="#fbeceb" stroke="#c0392b" stroke-width="1.1"/>
+<text x="316.0" y="414.0" font-size="13" fill="#c0392b" text-anchor="start" font-weight="600">冻结旁路（四路全冻结 → is_frozen=1）</text>
+<text x="316.0" y="436.0" font-size="11.5" fill="#7a3b33" text-anchor="start">FROZEN_NEAR / FAR / ROT / GAP：不产出点，但仍返回状态码</text>
+<line x1="246.0" y1="344.0" x2="298.0" y2="410.0" stroke="#c0392b" stroke-width="1.8" stroke-dasharray="4 4" marker-end="url(#arr)"/>
+<text x="24.0" y="500.0" font-size="12.5" fill="#8794a3" text-anchor="start">实测有效帧：FORWARD 11.2 s（4 路中 2 路走前向）· STEREO 104 ms（4 路 SGBM）· 冻结帧 1.2–2.5 ms。</text>
+<text x="24.0" y="522.0" font-size="12.5" fill="#8794a3" text-anchor="start">两条路径都先产出视口系射线，再转车系；t_cam 的基与符号在 pipeline.cpp 中有三处显式换算。</text>
+<text x="24.0" y="544.0" font-size="12.5" fill="#8794a3" text-anchor="start">D4 与 DVF 均为可选：D4 默认关，DVF 需 enable_voxel_filter=1 或 --filter。</text>
+</svg>

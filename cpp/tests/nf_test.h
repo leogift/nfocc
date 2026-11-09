@@ -15,6 +15,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -53,8 +54,13 @@ inline void report_fail(const char *file, int line, const std::string &msg) {
 
 inline int run_all() {
     int failed_cases = 0;
+    /* NF_TEST_FILTER=<substr> 只跑名字包含该子串的用例。长测试（depth_accuracy）
+     * 单跑一个用例时用，避免为了验证一个 case 重跑全部。 */
+    const char *filter = std::getenv("NF_TEST_FILTER");
     std::printf("跑 %d 个用例\n", (int)registry().size());
     for (size_t i = 0; i < registry().size(); ++i) {
+        if (filter && std::strstr(registry()[i].name, filter) == nullptr)
+            continue;
         current_case() = registry()[i].name;
         const int before = fail_count();
         std::printf("  [%2d] %-40s", (int)i + 1, registry()[i].name);

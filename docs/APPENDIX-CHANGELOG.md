@@ -259,6 +259,32 @@ python3 tools/calib_gen.py --inject-fault max_theta   # 负对照 EXIT=1
 
 ---
 
+## v0.3.1 — 改进方案与双基线方向兜底（2026-11-09）
+
+### 新增
+
+- `IMPROVEMENT-PLAN.md`：P0（可测性/正确性）、P1（FORWARD 性能）、P2（0_SKILL M4/M5/M6）、P3（M1/M2/M3）、P4（真机）分阶段方案，含验收命令与"已排除假设"清单。
+- `report/NFOCC-项目报告-2026-11.pdf`：31 页项目报告（15 张矢量图 + 5 张实测图）。
+
+### 代码
+
+- `pipeline.cpp`：双基线状态机增加**每相机方向兜底**（σ≤0.35 时 STEREO→FORWARD）。真实直行 `--baseline-mgr` 由 0 点恢复到 2,077 点。
+- `test_newmod_integration.cpp`：修正 `make_rig()` 的 R 转置错误（cam0 此前一直被 `NF_E_EXTRINSIC_INVALID` 禁用）；新增侧向平移负对照。
+- `nfocc_run.cpp`：新增 `BELOW_GROUND` 诊断；真实帧 164 为 236/2,077 点（11.4%），cam0 212 / cam1 24 / cam2 0 / cam3 0。
+- `SPEC-CONVENTION.md` §1.1：写明 ISO 8855 必须 Y 左（右手系 X×Y=Z），并记录 hanqtech MVL +957 / MVR −957 的独立证据。
+- 新增坐标约定回归：`test_camera::convention_viewplan_yaw_signs`（ML +90 / MR −90）、`test_hanqtech::ws_ego_y_axis_left`（MVL +Y / MVR −Y）。
+
+### 文档修正
+
+- 报告与 README 中的 `z=-498 mm` 由"点在相机后方"更正为"车体高度在地面以下 0.5 m"；`nf_triangulate_rays` 已拒绝 `s≤0`，不是负深度射线。
+
+### 已知仍开放
+
+- `depth_accuracy` 仍 4/4 失败；本轮未改算法，不报"已修复"。
+- FORWARD 有效帧 11.2 s；地面以下点根因未查明；D1 掩码仍为矩形占位。
+
+---
+
 ## v0.3.0 — 相机后端统一 vcam / 真实数据接入（2026-11-03）
 
 本版同步最近一轮工程改动。**核心变化：投影路径只剩 vcam 一条。**

@@ -37,6 +37,8 @@
 #include "nfocc/nfocc_default.h"
 
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 #include <cmath>
 #include <cstring>
 #include <vector>
@@ -78,6 +80,9 @@ struct Stat {
     double med = -1, p95 = -1, mean = -1;
     int    n_band[4] = { 0, 0, 0, 0 };     /* 1-2, 2-3, 3-4, 4-5 m */
     double med_band[4] = { -1, -1, -1, -1 };
+    /* 径向（沿该点视线）误差：剔除横向体素量化后的深度分量 */
+    int    n_band_rad[4] = { 0, 0, 0, 0 };
+    double med_band_rad[4] = { -1, -1, -1, -1 };
 };
 
 Stat summarize(std::vector<double> v) {
@@ -141,6 +146,14 @@ struct RunCfg {
     bool  forward = false;
     float yaw_off = 0.0f;
     int   frames = 2;
+    /* 0 = 用默认 1024x475/150°；前视验证设 590/90 */
+    nf_u32 view_w = 0;
+    float  view_hfov = 0.0f;
+    /* 0 = 四路全开；前视验证设 0x1（只 FV） */
+    nf_u32 cam_mask = 0;
+    /* true = 用 P1 快速径向匹配（2x 采样 + 2px 粗搜） */
+    bool forward_fast = false;
+    nf_f32 forward_ncc = 0.7f;
 };
 
 Stat run_accuracy(const NFScene &scene, NFCameraModel cams[4], NFPose poses[4],
@@ -160,19 +173,46 @@ Stat run_accuracy(const NFScene &scene, NFCameraModel cams[4], NFPose poses[4],
      * 用旧的环带式 derive 会得到 960x120，而 create 里按 150/120 重建
      * 得到 960x446 —— 尺寸不符，nf_lut_alloc 的 height 与 vp 不一致，
      * create 返回 NF_E_PARAM_RANGE，测试直接 return 空统计（n=0）。 */
+    const nf_u32 vw = rc.view_w ? rc.view_w : NF_V_VIEW_W;
+    const nf_f32 vhf = (rc.view_hfov > 0.0f) ? rc.view_hfov
+                                            : NF_V_VIEW_HFOV_DEG;
     NFViewParams vp;
-    nf_view_params_derive_fov(&vp, NF_V_VIEW_W, NF_V_VIEW_HFOV_DEG,
-                              NF_V_VIEW_VFOV_DEG);
+    nf_view_params_derive_fov(&vp, vw, vhf, NF_V_VIEW_VFOV_DEG);
     cfg.view = vp;
-    cfg.view_hfov_deg = NF_V_VIEW_HFOV_DEG;
+    cfg.view_hfov_deg = vhf;
+    cfg.cam_enable_mask = rc.cam_mask;
     nf_voxel_grid_init(&cfg.grid, NF_G_VOX, NF_G_X_MIN, NF_G_X_MAX,
                        NF_G_Y_MIN, NF_G_Y_MAX, NF_G_Z_MIN, NF_G_Z_MAX);
     cfg.b_min_mm = NF_B_MIN; cfg.b_max_mm = NF_B_MAX;
+    /* numDisp 是有限的：前视 90° 的 f=295 时，256 档只能覆盖
+     * b_max = 256*500/295 ≈ 434 mm。833 mm 会被 R2 拒绝（这正是它该做的事）。 */
+    {
+        const float bmax_engine =
+            (float)cfg.engine.max_disp_px * NF_B_ZMIN_EFF / vp.f;
+        if (cfg.b_max_mm > bmax_engine) cfg.b_max_mm = bmax_engine;
+    }
     cfg.sigma_d_px = 0.5f; cfg.sigma_b_ratio = 0.02f;
     cfg.gap_max_frames = NF_GAP_MAX_FRAMES;
+    cfg.forward_sample_step = rc.forward_fast ? 2u : 0u;
+    cfg.forward_coarse_step = rc.forward_fast ? 1.0f : 0.0f;
+    cfg.forward_ncc_min = rc.forward_fast ? rc.forward_ncc : 0.0f;
     cfg.max_points = NF_MAX_POINTS;
     cfg.thread_cameras = 1;
     for (int c = 0; c < 4; ++c) cfg.view_yaw_deg[c] = rc.yaw_off;
+
+    /* P0.2 真值点导出（不改变 ABI）：设置 NF_DUMP_TRUTH=<path> 时，
+     * 把每个输出点、真值点、表面/径向误差写成 CSV，便于离线复核。
+     * 默认不写文件；测试行为不变。 */
+    std::FILE *dump = nullptr;
+    if (const char *dp = std::getenv("NF_DUMP_TRUTH")) {
+        dump = std::fopen(dp, "a");
+        if (dump) {
+            std::fseek(dump, 0, SEEK_END);
+            if (std::ftell(dump) == 0)
+                std::fprintf(dump, "forward,cam_mask,view_w,move_mm,cam,Px,Py,Pz,"
+                                   "Tx,Ty,Tz,e_surf,e_rad,rng\n");
+        }
+    }
 
     nf_pipeline_bind_sgbm();
     NFPipeline *p = nullptr;
@@ -199,6 +239,7 @@ Stat run_accuracy(const NFScene &scene, NFCameraModel cams[4], NFPose poses[4],
     }
 
     std::vector<double> errs, ranges;
+    std::vector<double> errs_rad, ranges_rad;
     std::vector<double> per_cam[4];   /* 按相机分开统计，定位是哪一路在拖 */
     std::vector<double> lateral_deg;
     for (int f = 0; f < rc.frames; ++f) {
@@ -278,6 +319,28 @@ Stat run_accuracy(const NFScene &scene, NFCameraModel cams[4], NFPose poses[4],
             errs.push_back(e);
             ranges.push_back(rng);
             per_cam[cam].push_back(e);
+
+            /* P0.2: 同一射线上的径向误差。把 P 沿相机光心方向投到
+             * 场景，得到该视线的真值距离 th；rng - th 就是纯深度分量。
+             * e_surf 是点到表面法向距离，包含体素横向量化；两者一起
+             * 看才能区分"深度错"与"量化/横向错"。 */
+            float Ptrue[3];
+            const float th = truth_point_at(scene, poses[cam], cams[cam],
+                                            P[0], P[1], P[2], Ptrue);
+            if (th > 0.0f) {
+                const double e_rad = rng - (double)th;
+                errs_rad.push_back(e_rad);
+                ranges_rad.push_back(rng);
+                if (dump)
+                    std::fprintf(dump, "%d,%u,%u,%.1f,%d,%.3f,%.3f,%.3f,"
+                                       "%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n",
+                                 rc.forward ? 1 : 0, rc.cam_mask, cfg.view.width,
+                                 (double)rc.move_mm, cam,
+                                 (double)P[0], (double)P[1], (double)P[2],
+                                 (double)Ptrue[0], (double)Ptrue[1],
+                                 (double)Ptrue[2], (double)e_surf, e_rad,
+                                 (double)rng);
+            }
         }
     }
 
@@ -299,6 +362,28 @@ Stat run_accuracy(const NFScene &scene, NFCameraModel cams[4], NFPose poses[4],
         s.n_band[k] = b.n;
         s.med_band[k] = b.med;
     }
+    std::vector<double> band_rad[4];
+    for (size_t i = 0; i < errs_rad.size(); ++i) {
+        const double z = ranges_rad[i];
+        const int k = (z < 2000.0) ? 0 : (z < 3000.0) ? 1 : (z < 4000.0) ? 2 : 3;
+        band_rad[k].push_back(errs_rad[i]);
+    }
+    for (int k = 0; k < 4; ++k) {
+        Stat b = summarize(band_rad[k]);
+        s.n_band_rad[k] = b.n;
+        s.med_band_rad[k] = b.med;
+    }
+    {
+        Stat sr = summarize(errs_rad);
+        std::printf("        径向: n=%d 中位 %.0f mm, P95 %.0f mm | 分段:",
+                    sr.n, sr.med, sr.p95);
+        for (int k = 0; k < 4; ++k)
+            std::printf(" %d-%dm:%s(n=%d)", k + 1, k + 2,
+                        s.n_band_rad[k] ? "" : "-", s.n_band_rad[k]);
+        for (int k = 0; k < 4; ++k)
+            if (s.n_band_rad[k]) std::printf(" %.0f", s.med_band_rad[k]);
+        std::printf("\n");
+    }
     /* 按相机打印，判断是否某一路（如俯角 74° 的 MVL/MVR）显著更差 */
     std::printf("        按相机: ");
     for (int c = 0; c < 4; ++c) {
@@ -306,6 +391,7 @@ Stat run_accuracy(const NFScene &scene, NFCameraModel cams[4], NFPose poses[4],
         std::printf("cam%d n=%d med=%.0f  ", c, pc.n, pc.med);
     }
     std::printf("\n");
+    if (dump) std::fclose(dump);
     return s;
 }
 
@@ -375,6 +461,69 @@ NF_TEST(depth_accuracy_forward_45deg) {
                 s.n, s.med, s.p95);
     check_bands("45deg", s);
     NF_CHECK(s.n > 10);
+}
+
+/**
+ * P0.1：前视按设计视口 590×1024 / 90°（f=295）单独测，而不是和侧视
+ * 共用 1024×475 / 150°（f=137）。只跑 cam0（FV，yaw=0），避免 RV/MVL/MVR
+ * 的视口/场景差异混进统计。
+ *
+ * 本用例是**诊断用例**：打印径向与表面误差，但只断言"有足够样本"。
+ * 是否达标要等这组数出来后再定，不把未验证的阈值写成硬门槛。
+ */
+NF_TEST(depth_accuracy_front90_5kmh) {
+    NFScene scene;
+    NF_CHECK_STATUS(nf_scene_default(&scene), NF_OK);
+    NFViewParams vpp;
+    nf_view_params_derive_fov(&vpp, NF_V_VIEW_W_FRONT,
+                              NF_V_VIEW_HFOV_DEG_FRONT, NF_V_VIEW_VFOV_DEG);
+    nf_scene_set_tex_for_focal(&scene, vpp.f, 20.0f, 2000.0f);
+    std::printf("      前视 590x1024/90°: f=%.2f\n", (double)vpp.f);
+
+    NFCameraModel cams[4]; NFPose poses[4]; rig(cams, poses);
+    RunCfg rc;
+    rc.forward = true;
+    rc.view_w = NF_V_VIEW_W_FRONT;
+    rc.view_hfov = NF_V_VIEW_HFOV_DEG_FRONT;
+    rc.cam_mask = 0x1u;          /* 只 FV */
+    Stat s = run_accuracy(scene, cams, poses, rc);
+    std::printf("      前视 5km/h: n=%d 表面中位 %.0f mm, P95 %.0f mm\n",
+                s.n, s.med, s.p95);
+    for (int k = 0; k < 4; ++k) {
+        std::printf("        %d-%dm: 表面 %s(n=%d) 径向 %s(n=%d)\n",
+                    k + 1, k + 2,
+                    s.n_band[k] ? "" : "-", s.n_band[k],
+                    s.n_band_rad[k] ? "" : "-", s.n_band_rad[k]);
+        if (s.n_band[k])
+            std::printf("          表面中位 %.0f mm；径向中位 %.0f mm\n",
+                        s.med_band[k], s.med_band_rad[k]);
+    }
+    NF_CHECK_MSG(s.n > 10, "前视 90° 至少应有 10 个 1-5m 点");
+}
+
+/** P1 精度对照：同一前视 90° 场景，快速匹配 vs 全质量匹配。 */
+NF_TEST(depth_accuracy_front90_fast) {
+    NFScene scene;
+    NF_CHECK_STATUS(nf_scene_default(&scene), NF_OK);
+    NFViewParams vpp;
+    nf_view_params_derive_fov(&vpp, NF_V_VIEW_W_FRONT,
+                              NF_V_VIEW_HFOV_DEG_FRONT, NF_V_VIEW_VFOV_DEG);
+    nf_scene_set_tex_for_focal(&scene, vpp.f, 20.0f, 2000.0f);
+    NFCameraModel cams[4]; NFPose poses[4]; rig(cams, poses);
+    RunCfg rc;
+    rc.forward = true;
+    rc.view_w = NF_V_VIEW_W_FRONT;
+    rc.view_hfov = NF_V_VIEW_HFOV_DEG_FRONT;
+    rc.cam_mask = 0x1u;
+    rc.forward_fast = true;
+    Stat s = run_accuracy(scene, cams, poses, rc);
+    std::printf("      前视快速: n=%d 表面中位 %.0f mm, P95 %.0f mm\n",
+                s.n, s.med, s.p95);
+    for (int k = 0; k < 4; ++k)
+        if (s.n_band[k])
+            std::printf("        %d-%dm 表面中位 %.0f mm (n=%d)\n",
+                        k + 1, k + 2, s.med_band[k], s.n_band[k]);
+    NF_CHECK_MSG(s.n > 10, "快速匹配至少应有 10 个 1-5m 点");
 }
 
 NF_TEST(depth_accuracy_forward_15kmh) {

@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 660" width="1080" height="660">
+<rect width="1080" height="660" fill="#ffffff"/>
+<style>text{font-family:"PingFang SC","Hiragino Sans GB","Heiti SC",sans-serif;}.mono{font-family:"SF Mono","Menlo",monospace;}</style>
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#456"/></marker>
+<marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1e5a96"/></marker>
+<marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2e7d32"/></marker>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#c0392b"/></marker>
+</defs>
+<text x="30.0" y="34.0" font-size="25" fill="#1b2b3a" text-anchor="start" font-weight="600">四层架构：应用 / 主链 / 算法 / 基础设施</text>
+<text x="30.0" y="59.0" font-size="15" fill="#5d6d7e" text-anchor="start">核心库 11,004 行（src+include），仅依赖 vcam 静态库；引擎与相机后端均为运行期绑定</text>
+<rect x="24.0" y="70.0" width="1032.0" height="96.0" rx="9" fill="#f4f6f8" stroke="#d8e0e8" stroke-width="1.0"/>
+<text x="38.0" y="122.0" font-size="15" fill="#5d6d7e" text-anchor="start" font-weight="600">应用层</text>
+<rect x="132.0" y="82.0" width="220.5" height="70.0" rx="7" fill="#ffffff" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="242.2" y="102.9" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">nfocc_run</text>
+<text x="242.2" y="122.1" font-size="12.5" fill="#5d6d7e" text-anchor="middle">CLI · 端到端</text>
+<text x="242.2" y="141.3" font-size="11.9" fill="#8794a3" text-anchor="middle">613 行</text>
+<rect x="364.5" y="82.0" width="220.5" height="70.0" rx="7" fill="#ffffff" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="474.8" y="102.9" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">nfocc_viz</text>
+<text x="474.8" y="122.1" font-size="12.5" fill="#5d6d7e" text-anchor="middle">中间结果可视化</text>
+<text x="474.8" y="141.3" font-size="11.9" fill="#8794a3" text-anchor="middle">929 行</text>
+<rect x="597.0" y="82.0" width="220.5" height="70.0" rx="7" fill="#ffffff" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="707.2" y="112.5" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">nfocc_gen / sink</text>
+<text x="707.2" y="131.7" font-size="12.5" fill="#5d6d7e" text-anchor="middle">合成 / 回放</text>
+<rect x="829.5" y="82.0" width="220.5" height="70.0" rx="7" fill="#ffffff" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="939.8" y="112.5" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">探针工具</text>
+<text x="939.8" y="131.7" font-size="12.5" fill="#5d6d7e" text-anchor="middle">视差 / DVF / 扰动</text>
+<rect x="24.0" y="198.0" width="1032.0" height="96.0" rx="9" fill="#eaf5ec" stroke="#d8e0e8" stroke-width="1.0"/>
+<text x="38.0" y="250.0" font-size="15" fill="#5d6d7e" text-anchor="start" font-weight="600">主链层</text>
+<rect x="132.0" y="210.0" width="298.0" height="70.0" rx="7" fill="#ffffff" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="281.0" y="230.9" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">pipeline</text>
+<text x="281.0" y="250.1" font-size="12.5" fill="#5d6d7e" text-anchor="middle">6 阶段调度 · 门控 · 冻结</text>
+<text x="281.0" y="269.3" font-size="11.9" fill="#8794a3" text-anchor="middle">1,017 行</text>
+<rect x="442.0" y="210.0" width="298.0" height="70.0" rx="7" fill="#ffffff" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="591.0" y="230.9" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">input_source + io</text>
+<text x="591.0" y="250.1" font-size="12.5" fill="#5d6d7e" text-anchor="middle">文件 / ZMQ / 真实数据</text>
+<text x="591.0" y="269.3" font-size="11.9" fill="#8794a3" text-anchor="middle">1,608 行</text>
+<rect x="752.0" y="210.0" width="298.0" height="70.0" rx="7" fill="#ffffff" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="901.0" y="230.9" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">frame_pool</text>
+<text x="901.0" y="250.1" font-size="12.5" fill="#5d6d7e" text-anchor="middle">帧缓冲复用</text>
+<text x="901.0" y="269.3" font-size="11.9" fill="#8794a3" text-anchor="middle">395 行</text>
+<rect x="24.0" y="326.0" width="1032.0" height="96.0" rx="9" fill="#fdf4e5" stroke="#d8e0e8" stroke-width="1.0"/>
+<text x="38.0" y="378.0" font-size="15" fill="#5d6d7e" text-anchor="start" font-weight="600">算法层</text>
+<rect x="132.0" y="338.0" width="220.5" height="70.0" rx="7" fill="#ffffff" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="242.2" y="358.9" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">geometry</text>
+<text x="242.2" y="378.1" font-size="12.5" fill="#5d6d7e" text-anchor="middle">三角化 · 径向测距 · FoE</text>
+<text x="242.2" y="397.3" font-size="11.9" fill="#8794a3" text-anchor="middle">938 行</text>
+<rect x="364.5" y="338.0" width="220.5" height="70.0" rx="7" fill="#ffffff" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="474.8" y="358.9" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">voxel</text>
+<text x="474.8" y="378.1" font-size="12.5" fill="#5d6d7e" text-anchor="middle">Hash + CMA · zMap</text>
+<text x="474.8" y="397.3" font-size="11.9" fill="#8794a3" text-anchor="middle">1,081 行</text>
+<rect x="597.0" y="338.0" width="220.5" height="70.0" rx="7" fill="#ffffff" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="707.2" y="358.9" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">engine</text>
+<text x="707.2" y="378.1" font-size="12.5" fill="#5d6d7e" text-anchor="middle">SGBM / 模型双引擎</text>
+<text x="707.2" y="397.3" font-size="11.9" fill="#8794a3" text-anchor="middle">416 行</text>
+<rect x="829.5" y="338.0" width="220.5" height="70.0" rx="7" fill="#ffffff" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="939.8" y="358.9" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">lut</text>
+<text x="939.8" y="378.1" font-size="12.5" fill="#5d6d7e" text-anchor="middle">虚拟视口 · 车身掩码</text>
+<text x="939.8" y="397.3" font-size="11.9" fill="#8794a3" text-anchor="middle">657 行</text>
+<rect x="24.0" y="454.0" width="1032.0" height="96.0" rx="9" fill="#f3eef8" stroke="#d8e0e8" stroke-width="1.0"/>
+<text x="38.0" y="506.0" font-size="15" fill="#5d6d7e" text-anchor="start" font-weight="600">基础设施</text>
+<rect x="132.0" y="466.0" width="220.5" height="70.0" rx="7" fill="#ffffff" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="242.2" y="486.9" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">camera / vcam</text>
+<text x="242.2" y="506.1" font-size="12.5" fill="#5d6d7e" text-anchor="middle">KB · 径向多项式</text>
+<text x="242.2" y="525.3" font-size="11.9" fill="#8794a3" text-anchor="middle">433 行</text>
+<rect x="364.5" y="466.0" width="220.5" height="70.0" rx="7" fill="#ffffff" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="474.8" y="486.9" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">cluster</text>
+<text x="474.8" y="506.1" font-size="12.5" fill="#5d6d7e" text-anchor="middle">网格哈希 + DBSCAN</text>
+<text x="474.8" y="525.3" font-size="11.9" fill="#8794a3" text-anchor="middle">647 行</text>
+<rect x="597.0" y="466.0" width="220.5" height="70.0" rx="7" fill="#ffffff" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="707.2" y="486.9" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">baseline</text>
+<text x="707.2" y="506.1" font-size="12.5" fill="#5d6d7e" text-anchor="middle">双基线 · 里程计</text>
+<text x="707.2" y="525.3" font-size="11.9" fill="#8794a3" text-anchor="middle">383 行</text>
+<rect x="829.5" y="466.0" width="220.5" height="70.0" rx="7" fill="#ffffff" stroke="#93a7bb" stroke-width="1.4"/>
+<text x="939.8" y="486.9" font-size="15" fill="#1b2b3a" text-anchor="middle" font-weight="600">util</text>
+<text x="939.8" y="506.1" font-size="12.5" fill="#5d6d7e" text-anchor="middle">线程池 · 日志 · 计时</text>
+<text x="939.8" y="525.3" font-size="11.9" fill="#8794a3" text-anchor="middle">395 行</text>
+<line x1="540.0" y1="174.0" x2="540.0" y2="192.0" stroke="#93a4b5" stroke-width="1.8" marker-end="url(#ar)"/>
+<line x1="540.0" y1="302.0" x2="540.0" y2="320.0" stroke="#93a4b5" stroke-width="1.8" marker-end="url(#ar)"/>
+<line x1="540.0" y1="430.0" x2="540.0" y2="448.0" stroke="#93a4b5" stroke-width="1.8" marker-end="url(#ar)"/>
+<rect x="24.0" y="556.0" width="1032.0" height="76.0" rx="8" fill="#edf3fa" stroke="#1e5a96" stroke-width="1.1"/>
+<text x="40.0" y="580.0" font-size="14" fill="#1e5a96" text-anchor="start" font-weight="600">依赖边界</text>
+<text x="40.0" y="603.0" font-size="12.5" fill="#33475b" text-anchor="start">核心库不链接 OpenCV：SGBM 经 NFEngineOps 函数表在 nfocc_run 侧注入；相机投影只走 vcam 静态库。</text>
+<text x="40.0" y="622.0" font-size="12.5" fill="#7a3b33" text-anchor="start">代价：NF_WITH_VCAM=OFF 仍能编过，但投影返回 UNSUPPORTED —— 实测 21 项测试会多失败 5 项。</text>
+</svg>

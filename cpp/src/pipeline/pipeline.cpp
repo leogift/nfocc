@@ -106,6 +106,7 @@ struct NFPipeline {
     nf_u32           last_frame_id;
     nf_u8            has_ref;
     nf_u8            cam_disabled;   /**< bit i = 相机 i 外参自检失败 */
+    nf_u32           cam_mask;       /**< bit i = 本实例处理相机 i */
 };
 
 
@@ -218,6 +219,8 @@ NFStatus nf_params_validate(const NFPipelineConfig *cfg,
 
     /* R6: numDisp 必须是 16 的倍数 */
     if (cfg->engine.max_disp_px % 16 != 0) return NF_E_PARAM_RANGE;
+    /* R7: 相机掩码不得越界（0 = 全开） */
+    if (cfg->cam_enable_mask & ~0xFu) return NF_E_PARAM_RANGE;
     return NF_OK;
 }
 
@@ -251,6 +254,7 @@ NFStatus nf_pipeline_create(NFPipeline **pp, const NFPipelineConfig *cfg,
     NFPipeline *p = (NFPipeline *)std::calloc(1, sizeof(NFPipeline));
     if (!p) return NF_E_ENGINE_OOM;
     p->cfg = *cfg;
+    p->cam_mask = (cfg->cam_enable_mask != 0u) ? cfg->cam_enable_mask : 0xFu;
     for (nf_u32 i = 0; i < NF_NUM_CAMERAS; ++i) {
         p->cams[i] = cams[i];
         p->poses[i] = poses[i];
@@ -440,6 +444,9 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
 
     const nf_u32 vw = p->cfg.view.width, vh = p->cfg.view.height;
     nf_u32 n_frozen = 0;
+    nf_u32 n_enabled = 0;
+    for (nf_u32 c = 0; c < NF_NUM_CAMERAS; ++c)
+        if (p->cam_mask & (1u << c)) ++n_enabled;
 
     /* ---------------------------------------------------------------
      * 阶段 1: 四路 warp 并行
@@ -455,7 +462,8 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
     nf_u8 cam_active[NF_NUM_CAMERAS];
     for (nf_u32 c = 0; c < NF_NUM_CAMERAS; ++c) {
         warp_st[c] = NF_OK;
-        cam_active[c] = (p->cam_disabled & (nf_u8)(1u << c)) ? 0u : 1u;
+        cam_active[c] = ((p->cam_mask & (1u << c)) &&
+                         !(p->cam_disabled & (nf_u8)(1u << c))) ? 1u : 0u;
     }
 
 #ifdef NF_HAS_OPENMP
@@ -488,6 +496,8 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
     for (nf_u32 c = 0; c < NF_NUM_CAMERAS; ++c) {
         /* 本相机被 σ 截断的点数，供诊断输出 */
         nf_u32 n_sigma_cut = 0;
+        /* 本实例不处理的相机（分视口验证时使用） */
+        if (!(p->cam_mask & (1u << c))) continue;
         /* 外参自检失败的相机: 整个相机禁用 (SPEC-ICD 失效语义表) */
         if (p->cam_disabled & (nf_u8)(1u << c)) {
             out->cam_status[c] = NF_E_EXTRINSIC_INVALID;
@@ -557,6 +567,29 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
             /* 状态机决策 -> 门控决策 */
             dec.mode = p->last_bl_dec.mode;
             dec.baseline_mm = p->last_bl_dec.baseline_mm;
+
+            /*
+             * ---- 方向兜底（本轮新增）----
+             *
+             * 双基线状态机只按 |t| 判，不判平移方向。直行数据 b≥500 mm 时
+             * 它判 STEREO，但 SGBM 在纯前向平移下结构性失效：实测 46,821
+             * 次插入全部越界、最终 0 点。旧的单帧门控会判 FORWARD，同一
+             * 数据产出 2,077 点 —— 差异不在基线，在方向。
+             *
+             * 这里按**每路视口**的 t 做兜底：近前向（σ≤0.35）强制 FORWARD；
+             * 侧向视口的 σ 接近 1，保持状态机的 STEREO。这样四路可以各走
+             * 各的路径，而不是被 cam0 的一个决策绑死。
+             */
+            const nf_f32 tvn = std::sqrt(t_view[0] * t_view[0]
+                                       + t_view[1] * t_view[1]
+                                       + t_view[2] * t_view[2]);
+            if (tvn > 1e-6f) {
+                const nf_f32 sig = std::sqrt(t_view[0] * t_view[0]
+                                           + t_view[1] * t_view[1]) / tvn;
+                if (dec.mode == NF_MODE_STEREO && sig <= NF_SIGMA_FORWARD_MAX) {
+                    dec.mode = NF_MODE_FORWARD;
+                }
+            }
         } else {
             st = nf_gate_decide(t_view, in->frame_gap,
                                 p->cfg.b_min_mm, p->cfg.b_max_mm,
@@ -634,12 +667,25 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
 
             nf_u32 fwd_pts = 0;
             if (st_r == NF_OK && tmm > 1e-3f) {
-                NFStatus ms = nf_match_radial(p->view_img[c * 2],
-                                              p->view_img[c * 2 + 1],
-                                              p->view_val[c * 2],
-                                              vw, vh, foe, r_lo, r_hi,
-                                              2, 0.6f,
-                                              p->m_pts, p->m_conf, p->m_valid);
+                NFStatus ms;
+                if (p->cfg.forward_sample_step >= 2u) {
+                    ms = nf_match_radial_fast(
+                        p->view_img[c * 2], p->view_img[c * 2 + 1],
+                        p->view_val[c * 2], vw, vh, foe, r_lo, r_hi,
+                        2, (p->cfg.forward_ncc_min > 0.0f)
+                               ? p->cfg.forward_ncc_min : 0.6f,
+                        p->cfg.forward_sample_step,
+                        (p->cfg.forward_coarse_step > 0.0f)
+                            ? p->cfg.forward_coarse_step : 2.0f,
+                        p->m_pts, p->m_conf, p->m_valid);
+                } else {
+                    ms = nf_match_radial(p->view_img[c * 2],
+                                         p->view_img[c * 2 + 1],
+                                         p->view_val[c * 2],
+                                         vw, vh, foe, r_lo, r_hi,
+                                         2, 0.6f,
+                                         p->m_pts, p->m_conf, p->m_valid);
+                }
                 if (ms != NF_OK) {
                     out->cam_status[c] = ms;
                     out->num_points_per_cam[c] = 0;
@@ -934,14 +980,18 @@ NFStatus nf_pipeline_process(NFPipeline *p, const NFFrameInput *in,
         }
     }
 
-    /* 主导模式: 取产出点数最多的相机 */
-    nf_u32 best = 0;
-    for (nf_u32 c = 1; c < NF_NUM_CAMERAS; ++c)
-        if (out->num_points_per_cam[c] > out->num_points_per_cam[best]) best = c;
-    out->dominant_mode = out->mode[best];
+    /* 主导模式: 取本实例启用相机中产出点数最多的那一路 */
+    nf_i32 best = -1;
+    for (nf_u32 c = 0; c < NF_NUM_CAMERAS; ++c) {
+        if (!(p->cam_mask & (1u << c))) continue;
+        if (best < 0 ||
+            out->num_points_per_cam[c] > out->num_points_per_cam[best])
+            best = (nf_i32)c;
+    }
+    out->dominant_mode = (best >= 0) ? out->mode[best] : NF_MODE_STEREO;
 
-    /* 全部冻结 -> 本帧冻结, cloud 不可用 (ADR-003) */
-    if (n_frozen == NF_NUM_CAMERAS) {
+    /* 本实例启用的相机全部冻结 -> 本帧冻结, cloud 不可用 (ADR-003) */
+    if (n_frozen == n_enabled) {
         out->is_frozen = 1;
         out->cloud.num_points = 0;
         return NF_E_BASELINE_IDLE;

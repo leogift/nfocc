@@ -146,6 +146,25 @@ typedef struct {
 
     /** 长基线触发目标 (mm)，0 -> NF_B_TARGET */
     nf_f32 b_target_mm;
+
+    /**
+     * 相机使能掩码（bit0=FV bit1=RV bit2=MVL bit3=MVR）。
+     *
+     * 0 = 四路全开（默认，兼容旧调用方）。用于"前视 90° / 侧视 150°"
+     * 分视口验证：一个 pipeline 实例只处理掩码内的相机，另一实例处理
+     * 其余相机，两者各自用设计视口，不再被一个全局 150° 绑死。
+     */
+    nf_u32 cam_enable_mask;
+
+    /**
+     * FORWARD 径向匹配加速（P1）：
+     *   forward_sample_step = 0/1 -> 全分辨率；2 -> 每 2 行/列采样
+     *   forward_coarse_step = 0 -> 2.0 px 粗搜，再 0.5 px 细化
+     * 0/0 保持旧的全质量路径（测试默认），nfocc_run 生产默认 2/2.0。
+     */
+    nf_u32 forward_sample_step;
+    nf_f32 forward_coarse_step;
+    nf_f32 forward_ncc_min;      /* 0 -> 0.6；快速路径可收紧到 0.7 */
 } NFPipelineConfig;
 
 /** 单帧输入 */
