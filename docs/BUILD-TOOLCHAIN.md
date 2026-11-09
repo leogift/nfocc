@@ -241,6 +241,11 @@ CMake **优先**用 `third_party/vcam/lib/libvcam_core.a`（imported target）�
 nm build/nfocc_run | grep vc_cam_project    # 应能看到符号
 ```
 
+**vcam 关闭时功能不工作**：`-DNF_WITH_VCAM=OFF` 能编过，但 LUT 全空、
+点云为 0 —— 因为原生投影实现已删除（见 `SPEC-ICD.md` §7 变更说明），
+vcam 现在是投影/反投影的**唯一路径**。这个开关只保留给"确认不需要
+相机模型"的场景（如纯精简器测试），不是可用的降级选项。
+
 **RPATH**：`cmake/nf_deps.cmake` 给可执行文件写相对 RPATH
 （macOS `@loader_path/../lib`，Linux `$ORIGIN/../lib`），
 `otool -l` 可验证已写入。

@@ -3,7 +3,7 @@
 面向实现的规范文档。**规则：每一处代码符号（函数 / 结构体 / 状态机 / 参数）在本目录内只有一个定义处，
 其余位置只能引用、不得重复定义。** 验收条件必须可执行（给出命令或可判定的数值）。
 
-体系代号：**NFOCC-DOC v0.2**（2026-11-02 同步工程现状）。任何一处的修改都要同步改 `APPENDIX-CHANGELOG`。
+体系代号：**NFOCC-DOC v0.3**（2026-11-03 同步工程现状）。任何一处的修改都要同步改 `APPENDIX-CHANGELOG`。
 
 ---
 
@@ -11,19 +11,22 @@
 
 | 项 | 值 | 来源 |
 |---|---|---|
-| 代码规模 | 79 28 行（`cpp/src` + `cpp/include`） | `ROADMAP.md` |
-| 测试 | ctest 16/17；`depth_accuracy` 未达标 | 见下"已知未达标" |
-| 单元测试 | `test_cluster` 10/10、`test_d4_baseline` 6/6、`test_algo_rev` 12/12、`test_vcam_bridge` 5/5 | 各测试文件 |
-| 文档自检 | `python3 tools/docs_check.py` 46 篇全绿 | — |
-| 真实数据 | hanqtech 帧 164，1280×966，radial_poly 四次多项式 | `SPEC-DATASET.md` |
+| 代码规模 | 11004 行（`cpp/src` + `cpp/include`） | `wc -l` |
+| 测试 | ctest 20/21；`depth_accuracy` 未达标 | 见下"已知未达标" |
+| 单元测试 | `test_cluster` 10/10、`test_d4_baseline` 6/6、`test_algo_rev` 12/12、`test_vcam_bridge` 5/5、`test_voxel_filter` 10/10、`test_newmod` 10/10、`test_zmq_io` 8/8 | 各测试文件 |
+| 文档自检 | `python3 tools/docs_check.py` 42 篇全绿 | — |
+| 相机后端 | **vcam 静态库**（`cpp/third_party/vcam`），投影/反投影唯一路径 | `BUILD-TOOLCHAIN.md` |
+| 真实数据 | hanqtech 1280×966 radial_poly；3 组 × 4 路，**含 ego_distance / ego_yawRate 真值** | `SPEC-DATASET.md` |
 
 ### 已知未达标
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| `test_depth_accuracy` | **失败** | 合成场景的规则周期纹理让 SGBM 锁错周期，实测 σ_d 14–42 px。是**场景缺陷不是算法能力**，见 `PROBE-RESULTS.md` |
+| `test_depth_accuracy` | **失败** | 侧行 1-2/2-3/3-4/4-5m 中位 291/256/433/896mm（目标 150/200/320/320）。合成正弦纹理的周期性与立体匹配唯一性天然冲突，见 `PROBE-RESULTS.md` |
+| 前向径向匹配性能 | **回退** | 真实直行数据走 FORWARD 分支，3429 ms/帧（STEREO 路径 35 ms）。径向匹配是手写标量循环，未做降采样/并行 |
 | 150mm@5m | **未证实** | 需要 σ_d ≤ 0.34 px，理论不可达。分距离段的验收标准见 `SPEC-DEPTH-ACCEPTANCE.md` |
-| 聚类实用性 | **受限** | 真实数据 1256 点/帧聚不出物体，根因是精度不足导致点密度低。见 `CLUSTERING-IMPLEMENTATION.md` |
+| 聚类实用性 | **受限** | 真实数据点数随工况 195–2077/帧波动，聚不出物体。见 `CLUSTERING-IMPLEMENTATION.md` |
+| 负深度 | **未查明** | 真实数据点云出现 z=-498mm（点在相机后方），物理不可能 |
 
 ---
 
