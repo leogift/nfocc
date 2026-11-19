@@ -196,10 +196,5 @@ CHANGES.md           变更记录
 | 接口与失效语义 | `docs/SPEC-ICD.md` |
 | 视口 LUT | `docs/SPEC-LUT.md` |
 | 验收规范 | `docs/SPEC-VERIFY.md` |
-| 防御接入现状 | `docs/PLAN-DEFENSE-INTEGRATION.md` |
 | 构建与调试 | `docs/BUILD-TOOLCHAIN.md` |
 | 全部文档索引 | `docs/README.md` |
-
-## 许可
-
-内部项目，未授权勿外传。

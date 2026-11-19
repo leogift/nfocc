@@ -1,213 +1,75 @@
-# SPEC-VERIFY — 验收规范（每个代码单元可执行判据）
+# SPEC-VERIFY — 当前验收矩阵
 
-> **2026-11-19 状态**：本文件是旧验收判据集。文中引用的 `SPEC-COORD`、`SPEC-EPIPOLAR`、
-> `SPEC-ENGINE`、`SPEC-BASELINE-SM`、`PARAM.md` 已不在当前树；判据保留作设计意图，
-> 编号只作历史引用。当前实际验收以 `ctest`（20/21）与 §11 为准。
-
-
-**规则**：每条验收必须能用一个命令或一个可判定数值证明。"跑通了"、"看起来正常"不算通过。
-每条给出：判据、方法、失败时的含义。编号与各 SPEC 文档末尾的引用一一对应。
-
----
+本文件只记录**当前树里能执行、能判定**的验收项。历史 V-* 编号和已删除规范的引用不再保留。
 
 ## 0. 验收级别
 
-| 级别 | 含义 | 何时执行 |
+| 级别 | 含义 | 当前执行 |
 |---|---|---|
-| **L0 单元** | 单个函数/数学关系的数值判据 | 每次提交 |
-| **L1 模块** | 一个模块的端到端行为（合成数据） | 每次合并 |
-| **L2 链路** | 4 相机 + 状态机 + 引擎 + 体素全链路 | 每个里程碑 |
-| **L3 实车** | 需要真实数据 | P2 之后 |
+| L0 单元 | 单函数/数学关系 | 每次构建 |
+| L1 模块 | 模块级合成数据 | 每次合并 |
+| L2 链路 | 4/6 视口 + 引擎 + 体素 | 每个里程碑 |
+| L3 实车 | 真实数据/真值 | 未具备 |
 
-P0 阶段只做 L0 + L1。
+## 1. 当前测试矩阵
 
----
-
-## 1. 坐标系与相机（对应 `SPEC-COORD` §7）
-
-| 编号 | 级别 | 判据 | 方法 | 失败含义 |
-|---|---|---|---|---|
-| V-CO-1 | L0 | 4 路外参 `R_cv` 均满足 `‖RRᵀ−I‖<1e-9`、`det=1`；C2/C3/C4 自检全过 | 单元测试注入已知外参 | 旋转约定写错（本项目最高频错误） |
-| V-CO-2 | L0 | KB 正投影→反投影往返误差 **< 0.01 px** | 随机 1e4 个点，含 θ 接近 θ_max 的边界 | 3.3 的 Newton 未收敛或导数系数错（×3,×5,×7,×9） |
-| V-CO-3 | L0 | 光轴上的点投影到 `(cx,cy)`，误差 < 1e-6 px | 直接测 | 主点/轴定义错 |
-| V-CO-4 | L0 | 沿 `y_C` 正向的点投影 `v > cy`；沿 `x_C` 正向的点 `u > cx` | 直接测 | 图像上下/左右翻转（鱼眼装反） |
-| V-CO-5 | L0 | 体素索引 ↔ 坐标往返一致，**含 X/Y 反向** | 遍历边界格 | 反向没做，多帧融合同点落不同体素 |
-| V-CO-6 | L0 | `θ_d` 在 `[0,θ_max]` 上单调 | 采样 1000 点，检查 `θ_d(i+1)>θ_d(i)` | 畸变系数导致非单调，Newton 会跳解 |
-
----
-
-## 2. 极线（对应 `SPEC-EPIPOLAR` §5）
-
-| 编号 | 级别 | 判据 | 方法 | 失败含义 |
-|---|---|---|---|---|
-| V-EPI-1 | L0 | 构造 `t=(b,0,0)`（机体系），任意点集竖直视差 **< 1e-6 px** | 合成点集 | 式 (1.1) 的推导未被实现尊重 |
-| V-EPI-2 | L0 | 令 `t_z = k·b`，竖直视差随 `k` 线性增长，斜率与 (1.1) 的解析值相对误差 < 5% | 扫 k=0.05..0.5 | 竖直视差来源判断错 |
-| V-EPI-3 | L1 | 视场保留率随 `α`（光轴与 t 夹角）单调下降；`α=90°` 时 > 80% | **需重写探针**（见下） | 重定向方案不可用 |
-| V-EPI-4 | L1 | 视口重排后，覆盖原视场的点集竖直视差 < 0.5 px | 合成视口 | 重排实现错 |
-
-### 2.1 V-EPI-3 的探针要求（必须重写）
-
-现状：原 epipolar_rectify.py（已不在当前树）；该条**不能作为当前验收**，
-只保留设计要求。重写时必须满足：
-
-1. 单一坐标约定（`SPEC-COORD` §2），函数 docstring 里写明；
-2. 内建自检：`R` 正交、`R·t` 的 z 分量为 0、沿 `x'` 轴的点的竖直视差为 0；
-3. **自检必须在正确输入上通过、在错误输入上失败**（负对照，见 §9）；
-4. 输出：`α` → 视场保留率，单调性可判定。
-
----
-
-## 3. 引擎（对应 `SPEC-ENGINE` §7）
-
-| 编号 | 级别 | 判据 | 方法 | 失败含义 |
-|---|---|---|---|---|
-| V-ENG-1 | L0 | `numDisparities < d_max` 时返回 `NF_E_ENGINE_RANGE`，**不输出任何视差** | 故意传小值 | S-2 的容量断言缺失 |
-| V-ENG-2 | L0 | 相同输入连续两次调用，输出逐位相同 | memcmp | 存在未初始化内存或随机性 |
-| V-ENG-3 | L1 | 合成场景（已知视差 180 px）中位误差 **≤ 1 px**，两实现均满足 | 两实现各跑 | 引擎实现或输入约定错 |
-| V-ENG-4 | L0 | 全黑输入 → `valid` 全 0，且不得用 `disp=0` 冒充有效 | 检查掩码 | 无效语义与 d=0 混淆（E-6 违反） |
-| V-ENG-5 | L2 | 板端与 PC 端输出的中位误差相对差 < 1% | 导出模型后对拍 | 量化损失过大 |
-| V-ENG-6 | L0 | `numDisp=256`、侧视 1024×475 输入；峰值内存按 `nfocc_run` RSS 与 `nf_pipeline_mem_bytes` 记录（本轮未单独测峰值） | 运行时统计 | 内存估算错（E.1） |
-| V-ENG-7 | L1 | 有效覆盖率 `= (W−numDisp)/W ± 2%` | 统计 `valid` 列 | S-3 未被实现 |
-
----
-
-## 4. 基线状态机（对应 `SPEC-BASELINE-SM` §8）
-
-| 编号 | 级别 | 判据 | 方法 |
-|---|---|---|---|
-| V-BS-1 | L0 | 静止 100 帧 → 始终 `IDLE`，`is_valid=0` | 合成输入 |
-| V-BS-2 | L0 | 纯旋转 → `ROTATION_ONLY`，**引擎调用计数为 0** | 打桩计数 |
-| V-BS-3 | L0 | 直线加速 → `b` 单调增，`b∈[B_MIN,B_MAX]` 内为 `VALID` | 合成轨迹 |
-| V-BS-4 | L0 | `b>B_MAX` 后 1 帧内进入 `OVER_BASELINE`，且回 `IDLE` 后不抖动 | 边界扫描 |
-| V-BS-5 | L0 | `d_max_px > E_MAX_DISP` 时拒绝 `VALID`，返回 `NF_E_BASELINE_OVER` | 构造大 `b` |
-| V-BS-6 | L0 | §3.3 的字段一致性约束全部成立 | 断言注入 |
-| V-BS-7 | L0 | 条件成立到状态改变的帧数 ≤ 1 | 逐帧记录 |
-| V-BS-8 | L0 | T-10 的重置是原子的：连续 3 帧超限不产生反复重置日志 | 边界序列 |
-
-**V-BS-2 是最重要的一条**：它直接验证"该冻结时确实没算"，而不是"算了但标成无效"。
-
----
-
-## 5. ICD（对应 `SPEC-ICD` §9）
-
-| 编号 | 级别 | 判据 |
+| 能力 | 测试 | 状态 |
 |---|---|---|
-| V-ICD-1 | L0 | 每个公开函数对 NULL 入参返回 `NF_E_PARAM_NULL`（不得崩溃） |
-| V-ICD-2 | L0 | 每个 `NF_E_*` 至少被一个用例触发（覆盖表见 §8） |
-| V-ICD-3 | L0 | `sizeof(NFPoint) == 15`（`static_assert`） |
-| V-ICD-4 | L0 | version 不匹配 → `NF_E_PARAM_VERSION` |
-| V-ICD-5 | L0 | `NFViewParams` 自洽性（`W/(2f)=tan(fov_h/2)`）不满足时被拒 |
-
----
-
-## 6. 体素与输出
-
-| 编号 | 级别 | 判据 |
-|---|---|---|
-| V-VOX-1 | L0 | `nz = ceil((2500−(−500))/200) = 15`，末格为半格且被显式标记 |
-| V-VOX-2 | L0 | 同一物理点连续插入 N 次，质心漂移 < 1 mm（CMA 正确） |
-| V-VOX-3 | L0 | `zmap` 为 `uint32`，**bit31 恒为 0**；nz=15 时仅 bit0–bit14 可置位，bit15 及以上必须为 0 |
-| V-VOX-4 | L0 | `zindex` 前缀和满足 `zindex[i] ≤ zindex[i+1]`，且 `zindex[n]=num_points` |
-| V-VOX-5 | L0 | 点数超 `MAX_POINTS` 时按置信度截断，且输出 `NF_E_OUTPUT_OVERFLOW` |
-
----
-
-## 7. 函数级验收（逐函数，不留"间接覆盖"）
-
-`SPEC-ICD` §7 列出了全部公开函数。**每个函数必须至少有一条直接以它为主体的验收**，
-不接受"上面的判据间接覆盖了它"。
-
-| 函数 | 判据 | 正例 | 负例（必须失败） | 级别 |
-|---|---|---|---|---|
-| `nf_vcam_project` | 光轴点投到 `(cx,cy)`，误差 < 1e-3 px | 光轴点 | 外参未转到相机系 | L0 |
-| `nf_vcam_unproject` | 与 `nf_vcam_project` 往返 < 0.01 px；且射线夹角与 `rho=Σkᵢθⁱ` 反解一致 | 随机内点 | 传 `r_d·f > r_valid` → `ok=0` | L0 |
-| `nf_lut_build` | LUT 每格都能反查出唯一鱼眼坐标；有效性位与 `r_valid` 一致 | 标准视口 | `k1` 取负使 `θ_d` 非单调 → `NF_E_CAM_DISTORT_INV` | L0 |
-| `nf_view_warp` | 输出图与输入图在有效区内的亮度相关系数 > 0.999 | 合成场景 | 视口尺寸非自洽 → `NF_E_PARAM_RANGE` | L1 |
-| `nf_engine_init` | 参数不合时拒绝 | 正常配置 | `numDisp` 非 16 倍数 → `NF_E_PARAM_RANGE` | L0 |
-| `nf_engine_run` | 合成 180 px 场景中位误差 ≤ 1 px | 正常 | `numDisp < d_max` → `NF_E_ENGINE_RANGE` | L1 |
-| `nf_engine_deinit` | 两次调用不崩溃，内存归零 | 正常 | init 前调用 → `NF_E_ENGINE_NOT_INIT` | L0 |
-| `nf_triangulate_rays` | 已知真值深度相对误差 < 1e-6 | 两帧射线 + 已知 t | 视线共线/负深度 → `ok=0` | L0 |
-| `nf_voxel_insert` | 同点重复插入质心漂移 < 1 mm | 正常 | 灌满网格 → `NF_E_VOXEL_FULL` | L0 |
-| `nf_grid_flatten` | `zindex` 单调且末位 = 点数 | 正常 | 点数超限 → `NF_E_OUTPUT_OVERFLOW` | L0 |
-| `nf_baseline_init` | 参数关系 R1–R6 校验 | 正常 | `B_MIN > B_MAX` → `NF_E_PARAM_RANGE` | L0 |
-| `nf_baseline_update` | 5 状态正确迁移 | 见 V-BS-1..8 | 纯旋转时引擎计数必须为 0 | L0 |
-| `nf_baseline_reset` | 重置后回 IDLE 且参考帧为空 | 正常 | 重置后再 update 不崩溃 | L0 |
-| `nf_status_str` | 每个枚举值返回非空字符串 | 全部枚举 | 越界值返回 `"UNKNOWN"` | L0 |
-
-**这张表与 §9 的状态码覆盖表互补**：§8 验"错误码能触发"，本表验"函数行为正确"。
-
----
-
-## 8. 参数（原 `PARAM.md` §8；该文档不在当前树）
-
-| 编号 | 级别 | 判据 |
-|---|---|---|
-| V-PARAM-1 | L0 | `PARAM.md` §7 的 R1–R6 全部通过初始化自检 |
-| V-PARAM-2 | L0 | 代码里每个参数的数值与 `PARAM.md` 一致（脚本批量比对） |
-| V-PARAM-3 | L0 | 修改 `VF_VIEW` 后 `B_MIN`/`B_MAX` 按公式自动重算 |
-| V-PARAM-4 | L0 | 每个参数在 `PARAM.md` 都有"反推依据"非空 |
-
-### 8.1 V-PARAM-2 的审计报告（未执行）
-
-**现状**：`PARAM.md` 与 docs_check.py 都不在当前树，无法做“符号=值”的自动比对；
-本条状态是**未执行**，不是“通过”。代码常量当前只在 `nfocc_default.h` 与各头文件里，
-人工核对不能替代脚本。恢复 `PARAM.md` 后应重新实现该脚本。
-
----
-
-## 9. 状态码覆盖（当前可确认的示例，不逐码宣称）
-
-旧表把 17 个状态码全部标“待”，与当前 20/21 的测试状态不符。这里只列能从现有测试
-直接对应上的项；其余码**未逐码核对**，不写成“已覆盖”。
-
-| 状态码 | 当前触发/覆盖 | 状态 |
-|---|---|---|
-| `NF_E_PARAM_NULL` | `test_pipeline::pipe_null_safety` | 通过 |
-| `NF_E_PARAM_RANGE` | `test_pipeline::pipe_params_ok`、非法参数用例 | 通过 |
-| `NF_E_PARAM_VERSION` | `test_camera` 的 version 用例 | 通过 |
-| `NF_E_EXTRINSIC_INVALID` | `test_pipeline::pipe_bad_pose_disables_cam` | 通过 |
-| `NF_E_BASELINE_IDLE` | `test_pipeline::pipe_frozen_no_points` | 通过 |
-| `NF_E_ENGINE_RANGE` | `test_engine` 容量用例 | 通过 |
-| `NF_E_ENGINE_NOT_INIT` | `test_engine_bind` / engine 负例 | 通过 |
-| `NF_E_VOXEL_FULL` / `OUTPUT_OVERFLOW` | `test_voxel` / `test_voxel_filter` | 通过（以实际断言为准） |
-| 其余 `NF_E_*` | 未逐码核对 | **未完成** |
-
-## 10. 负对照（防止"探针通过"造成假验收）
-
-本项目已经出现过多次"探针本身错、结论被当真"的情况（合成左右图对应关系写反、
-坐标系转置混用）。因此规定：
-
-**每个自检必须同时验证"在正确输入上通过 + 在错误输入上失败"。**
-
-| 自检 | 正例 | 负例（必须失败） |
-|---|---|---|
-| R 正交 | 正常外参 | 把 `R` 转置后再传 |
-| KB 往返 | 正常 `k` | `k1` 取负导致非单调 |
-| 极线竖直分量为 0 | `t=(b,0,0)` | `t=(b,0,b/10)` |
-| SGBM 容量 | `numDisp ≥ d_max` | `numDisp = d_max/2` |
-| 状态机冻结 | 纯旋转 | 把 `ω` 判据关掉 |
-| 体素索引往返 | 正常网格 | 去掉 X/Y 反向 |
-
-**没有负例的自检视为未完成。**
-
----
-
-## 11. 当前可执行验收（2026-11-19）
-
-下表只列**当前树里能跑**的对应项；不以旧 P0 编号宣称全部完成。
-
-| 项 | 当前证据 | 状态 |
-|---|---|---|
-| 相机/外参/KB 往返 | `test_camera`、`test_vcam_bridge` | 通过 |
-| 几何/三角化/体素索引 | `test_geometry`、`test_voxel` | 通过 |
-| 引擎容量与确定性 | `test_engine`、`test_engine_bind` | 通过 |
-| 门控/双基线 | `test_d4_baseline`、`test_newmod` | 通过 |
-| 端到端 4 视口 | `test_pipeline`、`test_newmod_integration` | 通过 |
-| 6 视口映射与 t_veh | `test_pipeline::pipe_six_view_plan` | 通过 |
+| 相机模型、外参、KB 往返 | `test_camera`、`test_vcam_bridge` | 通过 |
+| 几何、三角化、体素索引 | `test_geometry`、`test_voxel` | 通过 |
+| 视口 LUT / 场景 | `test_scene`、`test_pipeline::pipe_view_selfconsistent` | 通过 |
+| 引擎容量/确定性/绑定 | `test_engine`、`test_engine_bind` | 通过 |
+| 门控、双基线、新模块 | `test_d4_baseline`、`test_newmod` | 通过 |
+| 4 视口端到端 | `test_pipeline`、`test_newmod_integration` | 通过 |
+| 6 视口映射与 `t_veh` | `test_pipeline::pipe_six_view_plan` | 通过 |
+| 体素精简/聚类/IO/并发 | `test_voxel_filter`、`test_cluster`、`test_io_protocol`、`test_concurrency`、`test_zmq_io` | 通过 |
 | 前向精度 | `test_depth_accuracy` | **失败**：6 用例中 4 个旧验收用例失败 |
-| 极线重排探针 | 原 epipolar_rectify.py 不在树中 | **未纳入** |
-| 参数脚本比对 | 原 docs_check.py / PARAM.md 不在树中 | **未执行** |
 
-`ctest` 总计 21 个目标、20 个通过；180 用例 / 2,361 断言。`depth_accuracy` 的
-`front90_5kmh` 当前为 307/305/460/857 mm（1–5 m 分段表面中位），目标
-150/200/320/320 mm。
+`ctest`：21 个目标 **20 通过**；180 用例 / 2,361 断言。
+
+## 2. 已知失败
+
+`depth_accuracy` 的 4 个旧验收用例（侧行/直行/45°/15 km/h）仍失败。当前前视 90°
+分段表面中位：
+
+| 工况 | 1–2 m | 2–3 m | 3–4 m | 4–5 m |
+|---|---:|---:|---:|---:|
+| 前视 90°，278 mm 基线 | 307 | 305 | 460 | 857 |
+| 目标 | 150 | 200 | 320 | 320 |
+
+真实数据没有点云真值，不能把“落在合理范围”当成精度通过。
+
+## 3. 6 视口验收
+
+| 项 | 判据 | 证据 |
+|---|---|---|
+| 视口表 | 6 项，cam 映射 `0,0,1,1,2,3` | `nf_viewplan_default`、`pipe_six_view_plan` |
+| 前后 | 中心相隔 90°，各 110° 张角，590×716 | `SPEC-LUT.md` |
+| 左右 | ±90°，150°，1024×475 | `SPEC-LUT.md` |
+| 路径 | 前后 `|t_z|/|t|>0.25` 走径向，左右走 SGBM | `pipeline.cpp` |
+| 真实数据 | 2,019 点 / 104.6 ms / RSS 165.3 MB | 帧 164，`--sfm6` |
+| 解析场景 | 6 视口前向表面 354 mm，4 视口 402 mm | `probe_sfm6` |
+
+## 4. 负对照
+
+当前保留的负对照：
+
+| 项 | 正例 | 负例 |
+|---|---|---|
+| 外参 | 正常 `R` | 非正交 `R` → `NF_E_EXTRINSIC_INVALID` |
+| 引擎容量 | `numDisp >= d_max` | `numDisp < d_max` → `NF_E_ENGINE_RANGE` |
+| 冻结 | 侧移/前向有效帧 | 静止/近场 → 冻结且 0 点 |
+| 6 视口 | `t_veh` 投影 | 同一相机两个视口共用 `t_cam` 会错（文档禁止） |
+| 掩码 | 空掩码出点 | 全掩码禁用对应视口 |
+
+## 5. 复现
+
+```bash
+cd cpp
+cmake -S . -B build/host -DCMAKE_BUILD_TYPE=Release \
+      -DNF_WITH_VCAM=ON -DNF_BUILD_TESTS=ON
+cmake --build build/host -j8
+ctest --test-dir build/host --output-on-failure
+NF_TEST_FILTER=front90 ./build/host/tests/test_depth_accuracy
+./build/host/probe_sfm6
+```

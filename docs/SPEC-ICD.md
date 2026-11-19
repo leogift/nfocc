@@ -3,11 +3,6 @@
 **本文档是所有代码符号的唯一接口定义处。** 其他文档引用类型/函数时只写名字，不重复定义。
 命名约定：类型 `NF*` 用 `_t` 后缀的 C 风格；函数 `nf_*`；枚举 `NF_*`；状态码 `NF_E_*`。
 
-> **2026-11-19 引用映射**：旧 `SPEC-COORD`/`SPEC-EPIPOLAR`/`SPEC-ENGINE`/
-> `SPEC-BASELINE-SM`/`PARAM.md` 不在当前树。坐标见 `SPEC-CONVENTION.md`，引擎见
-> `nfocc_engine.h`，状态机见 `nfocc_baseline.h`，几何见 `nfocc_geometry.h`。
-> 下文保留旧编号作历史引用。
-
 坐标系、单位、矩阵约定见 `SPEC-CONVENTION.md`，此处不重复。
 
 ---
@@ -38,7 +33,7 @@ typedef enum {
     NF_E_PARAM_VERSION         = 3,   // 结构体 version 不匹配
     /* --- 相机/几何 --- */
     NF_E_CAM_NOT_CALIBRATED    = 10,  // 内参缺失
-    NF_E_CAM_DISTORT_INV       = 11,  // theta_d 反解不收敛(SPEC-COORD 3.3)
+    NF_E_CAM_DISTORT_INV       = 11,  // theta_d 反解不收敛(nfocc_camera.h)
     NF_E_CAM_OUT_OF_VALID      = 12,  // 像素超出有效半径 R_valid
     NF_E_EXTRINSIC_INVALID     = 13,  // 外参自检 C1–C4 失败
     /* --- 基线 --- */
@@ -48,8 +43,8 @@ typedef enum {
     NF_E_BASELINE_DEGRADED     = 23,  // 位姿源降级
     /* --- 引擎 --- */
     NF_E_ENGINE_NOT_INIT       = 30,
-    NF_E_ENGINE_RANGE          = 31,  // numDisparities < range.d_max (SPEC-ENGINE S-2)
-    NF_E_ENGINE_OOM            = 32,  // 内存不足 (SPEC-ENGINE S-4)
+    NF_E_ENGINE_RANGE          = 31,  // numDisparities < range.d_max (nfocc_engine.h)
+    NF_E_ENGINE_OOM            = 32,  // 内存不足 (nfocc_engine.h)
     NF_E_ENGINE_UNSUPPORTED    = 33,  // 平台不支持该 kind
     /* --- 体素/输出 --- */
     NF_E_VOXEL_FULL            = 40,  // 哈希表满(负载因子超限)
@@ -61,14 +56,14 @@ const char *nf_status_str(NFStatus s);
 
 ### 1.3 失效语义总表
 
-每一行对应一个 `NF_E_*`，规定**上层必须怎么反应**。这张表是 `SPEC-BASELINE-SM` 与下游契约的依据。
+每一行对应一个 `NF_E_*`，规定**上层必须怎么反应**。这张表是 `nfocc_baseline.h` 与下游契约的依据。
 
 | 状态码 | 触发条件 | 上层必须的动作 | 下游可观测的后果 |
 |---|---|---|---|
 | `NF_E_CAM_DISTORT_INV` | Newton 10 次不收敛 | 该 LUT 点标为无效，继续其余点 | 该方向缺少体素 |
 | `NF_E_CAM_OUT_OF_VALID` | `r_d·f > R_valid` | 该点标无效 | 同上 |
 | `NF_E_EXTRINSIC_INVALID` | 外参自检失败 | **整个相机禁用**，记故障 | 该相机无贡献；`source_camera` 不含该位 |
-| `NF_E_BASELINE_*` | 见 `SPEC-BASELINE-SM` §2 | **不调用引擎**，输出"冻结"帧 | `is_valid=0`，保留上一帧体素（可选） |
+| `NF_E_BASELINE_*` | 见 `nfocc_baseline.h` | **不调用引擎**，输出"冻结"帧 | `is_valid=0`，保留上一帧体素（可选） |
 | `NF_E_ENGINE_RANGE` | `numDisp < d_max` | 编程错误，**不得静默**；返回错误 | 无输出 |
 | `NF_E_ENGINE_OOM` | 分配失败 | 降档（downscale×2）重试一次，仍失败则报错 | 可能降低分辨率 |
 | `NF_E_VOXEL_FULL` | 负载因子 > 上限 | 丢弃新点，计数上报 | 点云稀疏化 |
@@ -108,7 +103,7 @@ typedef struct {
     nf_f32 f;              // px
     nf_f32 cx, cy;         // px, 允许小数
     nf_f32 k1, k2, k3, k4; // KB 畸变系数
-    nf_f32 r_valid;        // 有效半径 px (SPEC-COORD 3.4)
+    nf_f32 r_valid;        // 有效半径 px (SPEC-CONVENTION §1)
 } NFCameraModel;
 ```
 
@@ -118,7 +113,7 @@ typedef struct {
 typedef struct {
     nf_u32 version;
     nf_u8  cam_id;
-    nf_f32 R[9];           // R_cv, 行优先, 满足 v_V = R·v_C  (SPEC-COORD §2)
+    nf_f32 R[9];           // R_cv, 行优先, 满足 v_V = R·v_C  (SPEC-CONVENTION §2)
     nf_f32 t[3];           // 相机光心在 V 系, mm
     nf_u64 timestamp_us;
 } NFPose;
@@ -136,7 +131,7 @@ NFStatus nf_baseline_update(NFBaselineCtx *ctx,
 void     nf_baseline_reset(NFBaselineCtx *ctx);
 ```
 
-`NFBaselineInput` / `NFBaselineOutput` 的字段在 `SPEC-BASELINE-SM.md` §3 定义（状态机文档是这两个结构体的唯一定义处）。
+`NFBaselineInput` / `NFBaselineOutput` 的字段见 `nfocc_baseline.h`。
 
 ---
 
@@ -158,8 +153,8 @@ typedef struct {
 ```c
 typedef struct {
     nf_u32 version;
-    nf_f32 *disp;          // [height*width], 单位 px, 符号见 SPEC-COORD 4.2
-    nf_u8  *valid;         // [height*width], 1=有效; 与 d=0 不混淆 (SPEC-ENGINE E-6)
+    nf_f32 *disp;          // [height*width], 单位 px, 符号见 SPEC-CONVENTION §2
+    nf_u8  *valid;         // [height*width], 1=有效; 与 d=0 不混淆 (nfocc_engine.h)
     nf_f32 *conf;          // [height*width], 0..1; SGBM 实现可填 1.0
     nf_u32 width, height;
     nf_i32 stride_f;       // 元素数/行
@@ -174,7 +169,7 @@ typedef enum { NF_ENGINE_SGBM = 0, NF_ENGINE_MODEL = 1 } NFEngineKind;
 typedef struct {
     nf_u32 version;
     NFEngineKind kind;
-    nf_i32 max_disp_px;    // 必须 >= range.d_max (SPEC-ENGINE S-2)
+    nf_i32 max_disp_px;    // 必须 >= range.d_max (nfocc_engine.h)
     nf_i32 downscale;      // 1 | 2 | 4
     nf_f32 conf_thresh;    // 仅 MODEL 用
     /* SGBM 专用, kind==SGBM 时生效 */
@@ -184,7 +179,7 @@ typedef struct {
 } NFEngineConfig;
 ```
 
-函数签名见 `SPEC-ENGINE.md` §2.1。
+函数签名见 `nfocc_engine.h`。
 
 ---
 
@@ -216,7 +211,7 @@ typedef struct {
 | 约束 | 说明 |
 |---|---|
 | 自洽性 | 必须满足 `width/(2·f) = tan(fov_h/2)`，误差 > 1e-3 返回 `NF_E_PARAM_RANGE` |
-| `f` 与 `width` | 降采样时两者同时减半（`SPEC-ENGINE` S-4 的应对） |
+| `f` 与 `width` | 降采样时两者同时减半（视口/引擎使用同一尺寸） |
 
 ### 5.3 其余体素类型见 §6
 
@@ -233,7 +228,7 @@ typedef struct {
     nf_i32 x_min, x_max;               // mm
     nf_i32 y_min, y_max;
     nf_i32 z_min, z_max;
-    nf_u32 nx, ny, nz;                 // 由上面推出, 必须自洽 (SPEC-COORD 5.1)
+    nf_u32 nx, ny, nz;                 // 由上面推出, 必须自洽 (SPEC-CONVENTION §2)
 } NFVoxelGridParams;
 ```
 
@@ -241,7 +236,7 @@ typedef struct {
 
 ```c
 typedef struct {
-    nf_i32 x_mm, y_mm, z_mm;   // 体素中心 (SPEC-COORD 5.2)
+    nf_i32 x_mm, y_mm, z_mm;   // 体素中心 (SPEC-CONVENTION §2)
     nf_u8  source_camera;      // 位图: bit0=FV bit1=RV bit2=ML bit3=MR
     nf_u8  sigma_cm;           // 空间不确定度, 255 = 超限哨兵
     nf_u8  existence_prob;     // 0..100
@@ -266,7 +261,7 @@ typedef struct {
     nf_u32 version;
     nf_u32 n_cells;            // = nx*ny
     nf_u32 *zmap;              // [n_cells], bit k = 第 k 层体素存在
-    nf_u32 *zindex;            // [n_cells+1], 前缀和 (SPEC-COORD 的 O(1) 寻址)
+    nf_u32 *zindex;            // [n_cells+1], 前缀和 (O(1) 寻址)
     nf_u32 *point_offset_dummy;// 保留, 置 NULL
 } NFGridOutput;
 ```
@@ -288,11 +283,11 @@ typedef struct {
 | `nf_vcam_unproject` | `NFCameraModel`, `(u,v)` | 单位射线 (相机系), 收敛标志 | 同上 |
 | `nf_lut_build` | `NFCameraModel`, `NFPose`, `NFViewParams`, 车身掩码 | LUT + `NFLutStats` | `NF_E_CAM_DISTORT_INV`, `NF_E_PARAM_RANGE`, `NF_E_LUT_EMPTY` |
 | `nf_view_warp` | 原图 + LUT | `NFImageView`（极线对齐视口图） | `NF_E_PARAM_RANGE` |
-| `nf_engine_init/run/deinit` | 见 `SPEC-ENGINE` | `NFDisparityMap` | `NF_E_ENGINE_*` |
+| `nf_engine_init/run/deinit` | `nfocc_engine.h` | `NFDisparityMap` | `NF_E_ENGINE_*` |
 | `nf_triangulate_rays` | 两帧光心 `c0/c1` + 两帧单位射线 `r0/r1` | 距离 `s0` + `ok` | 无（逐点 `ok=0`） |
 | `nf_voxel_insert` | 3D 点 + `sigma` | 哈希插入/CMA 更新 | `NF_E_VOXEL_FULL` |
 | `nf_grid_flatten` | 体素表 | `NFGridOutput` | `NF_E_OUTPUT_OVERFLOW` |
-| `nf_baseline_*` | 见 `SPEC-BASELINE-SM` | — | `NF_E_BASELINE_*` |
+| `nf_baseline_*` | `nfocc_baseline.h` | — | `NF_E_BASELINE_*` |
 
 ### 7.1 `nf_triangulate_rays` 精确签名
 

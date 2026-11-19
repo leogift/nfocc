@@ -1,7 +1,5 @@
 # 构建与工具链
 
-> **2026-11-19 引用说明**：文中 `SPEC-BUILD`/`SPEC-ENGINE`/`PARAM` 等编号来自已删除的
-> 早期规范；当前构建约束以 `cpp/CMakeLists.txt`、`cpp/scripts/build.sh` 和根 README 为准。
 
 三套目标：**本机 macOS**、**Linux PC**、**Aarch64 嵌入式**。
 一条命令覆盖，参数固化在 `cpp/scripts/build.sh`。
@@ -60,7 +58,7 @@ sudo apt install build-essential cmake pkg-config \
 | 内存统计 | `/proc/self/statm` | `mach_task_basic_info` |
 
 两处平台差异都在 `nf_deps.cmake` 与 `nfocc_run.cpp` 里用 `#if defined(__APPLE__)`
-处理，**上层代码没有平台分支**（`SPEC-BUILD` §7 的要求）。
+处理，**上层代码没有平台分支**（`cpp/CMakeLists.txt` 的目标边界）。
 
 ---
 
@@ -191,7 +189,7 @@ CMake 在主工程配置时 include 一次，之后 `try_compile` 的子工程�
 
 ## 4. 核心库的零依赖约束
 
-`SPEC-BUILD` §3 要求核心库不链接 OpenCV/ZeroMQ/ORT（V-BUILD-2）。
+核心库不链接 OpenCV/ZeroMQ/ORT（V-BUILD-2）。
 `./scripts/build.sh core` 会实测验证：
 
 ```
